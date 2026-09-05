@@ -63,8 +63,10 @@ export class DriveAudio {
     for(let i=0;i<this.osc.length;i++)this.osc[i].frequency.setTargetAtTime(base*(i===0?.5:i)+Math.sin(t*11)*.5,t,.035);
     this.engineFilter.frequency.setTargetAtTime(350+player.throttle*1300+player.rpm*.16,t,.06);
     this.engineBus.gain.setTargetAtTime((active?.20+player.throttle*.12:.085)*volume*(player.shifting>0?.5:1),t,.045);
-    this.windGain.gain.setTargetAtTime(active?clamp(Math.abs(player.u)/90,0,1)*.22*volume:0,t,.15);
-    this.windFilter.frequency.setTargetAtTime(350+Math.abs(player.u)*18,t,.2);
+    // Wind stays a faint breeze that only appears well above cruising speed, so it never
+    // hums over the engine/music as the background "woo" the player reported.
+    this.windGain.gain.setTargetAtTime(active?clamp((Math.abs(player.u)-7)/80,0,1)*.05*volume:0,t,.15);
+    this.windFilter.frequency.setTargetAtTime(320+Math.abs(player.u)*12,t,.2);
     this.squealGain.gain.setTargetAtTime(active?clamp((player.slip-.04)*.6,0,.13)*volume:0,t,.035);
     this.squeal.frequency.setTargetAtTime(480+player.u*4+Math.sin(t*25)*30,t,.02);
     this.echo.gain.setTargetAtTime(tunnel?.48:0,t,.2);

@@ -10,7 +10,7 @@ const noiseGLSL=`float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*4
 function seeded(n){return (Math.sin(n*127.1+311.7)*43758.5453)%1*.5+.5;}
 function material(color,roughness=.8,metalness=0){return new THREE.MeshStandardMaterial({color,roughness,metalness});}
 const dummy=new THREE.Object3D();
-function instance(scene,geometry,mat,items){const m=new THREE.InstancedMesh(geometry,mat,items.length);items.forEach((q,i)=>{dummy.position.copy(q.p);dummy.rotation.set(q.rx||0,q.ry||0,q.rz||0);dummy.scale.set(q.x||1,q.y||1,q.z||1);dummy.updateMatrix();m.setMatrixAt(i,dummy.matrix);if(q.color)m.setColorAt(i,new THREE.Color(q.color));});m.instanceMatrix.needsUpdate=true;m.computeBoundingSphere();scene.add(m);return m;}
+function instance(scene,geometry,mat,items){const m=new THREE.InstancedMesh(geometry,mat,items.length);dummy.rotation.order='YXZ';items.forEach((q,i)=>{dummy.position.copy(q.p);dummy.rotation.set(q.rx||0,q.ry||0,q.rz||0);dummy.scale.set(q.x||1,q.y||1,q.z||1);dummy.updateMatrix();m.setMatrixAt(i,dummy.matrix);if(q.color)m.setColorAt(i,new THREE.Color(q.color));});m.instanceMatrix.needsUpdate=true;m.computeBoundingSphere();scene.add(m);return m;}
 
 export class GameWorld {
   constructor(canvas,track){
@@ -68,8 +68,12 @@ export class GameWorld {
     }
     const rails=[],posts=[],reflectors=[];
     for(let s=0;s<this.track.length;s+=7){const q=this.track.sample(s);for(const side of[-1,1]){
-      rails.push({p:this.track.point(s,side*9.85,.79),ry:q.heading,rx:-Math.asin(q.slope),x:.14,y:.25,z:7.12});
-      if(Math.round(s/7)%2===0){posts.push({p:this.track.point(s,side*9.91,.46),x:.13,y:.92,z:.15,ry:q.heading});reflectors.push({p:this.track.point(s,side*9.74,.84),x:.04,y:.1,z:.13,ry:q.heading,color:side<0?'#f4e8c4':'#f58542'});}
+      // Overlap each straight rail segment (z > spacing) so it reads as one continuous
+      // barrier through corners; posts land on every node, rails are yawed then pitched
+      // (YXZ in instance) so they stay glued to the road on slopes.
+      rails.push({p:this.track.point(s,side*9.85,.79),ry:q.heading,rx:-Math.asin(q.slope),x:.14,y:.25,z:7.6});
+      posts.push({p:this.track.point(s,side*9.91,.46),x:.13,y:.92,z:.15,ry:q.heading});
+      if(Math.round(s/7)%2===0)reflectors.push({p:this.track.point(s,side*9.74,.84),x:.04,y:.1,z:.13,ry:q.heading,color:side<0?'#f4e8c4':'#f58542'});
     }}
     instance(this.scene,new THREE.BoxGeometry(1,1,1),material('#a9ada5',.34,.8),rails);
     instance(this.scene,new THREE.BoxGeometry(1,1,1),material('#5e6760',.45,.65),posts);
