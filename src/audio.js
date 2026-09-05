@@ -25,7 +25,7 @@ export class DriveAudio {
   async loadMusic(){
     this.musicStatus='loading';
     try{
-      const response=await fetch('/audio/exhilarate-kevin-macleod.mp3',{signal:AbortSignal.timeout(20000)});
+      const response=await fetch(import.meta.env.BASE_URL+'audio/exhilarate-kevin-macleod.mp3',{signal:AbortSignal.timeout(20000)});
       if(!response.ok)throw new Error(`Music HTTP ${response.status}`);
       this.musicBuffer=await this.ctx.decodeAudioData(await response.arrayBuffer());
       this.musicStatus='ready';

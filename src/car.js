@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 let template;
-export async function loadCarModels(){if(!template)template=(await new GLTFLoader().loadAsync('/models/solstice-gt.glb')).scene;}
+export async function loadCarModels(){if(!template)template=(await new GLTFLoader().loadAsync(import.meta.env.BASE_URL+'models/solstice-gt.glb')).scene;}
 export function createCar(config,color='#e85824',simple=false){
  if(!template)throw new Error('Car model has not loaded');
  const root=new THREE.Group(),body=template.clone(true);root.add(body);
