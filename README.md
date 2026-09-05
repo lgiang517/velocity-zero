@@ -2,7 +2,7 @@
 
 **An original coastal driving experience for the browser.** Chase the horizon along a continuous ~6.75 km island road that threads coast, mountain, tunnel, city, harbour and a sea bridge. Dynamic single-track vehicle physics, PBR cars, live-synthesized engine/tyre/music audio, seven race rules and competitors with their own driving styles.
 
-> **Play it now** — build with `npm run build`, then serve `dist/` (or run `npm run preview`). Details below.
+> **Play it online:** [**https://lgiang517.github.io/velocity-zero/**](https://lgiang517.github.io/velocity-zero/) — or build locally with `npm run build`, then serve `dist/` (or run `npm run preview`). Details below.
 
 ---
 
