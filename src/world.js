@@ -188,7 +188,7 @@ export class GameWorld {
     this.buildingMaterial.emissiveIntensity=.05+this.night*.9;this.lampMaterial.emissiveIntensity=1.3+this.night*2;
     const q=this.track.sample(player.s);car.root.position.copy(q.p);car.root.rotation.set(-Math.asin(q.slope),q.heading+player.yaw,0,'YXZ');
     const pos=car.root.position,forward=new THREE.Vector3(Math.sin(q.heading+player.yaw),0,Math.cos(q.heading+player.yaw));
-    car.root.position.addScaledVector(q.right,player.d);car.paint.roughness=.26-this.wet*.11;
+    car.root.position.addScaledVector(q.right,player.d);car.paint.roughness=.34-this.wet*.11;
     this.sun.target.position.copy(pos);this.sun.position.copy(pos).add(new THREE.Vector3(-240,330,390));
     this.sky.position.copy(this.camera.position);
     this.headlight.position.copy(pos).addScaledVector(forward,2).add(new THREE.Vector3(0,.7,0));this.headlight.target.position.copy(pos).addScaledVector(forward,50);this.headlight.intensity=25+this.night*140;
@@ -203,7 +203,7 @@ export class GameWorld {
       const roadF=q.tan.clone().setY(0).normalize();const velocityDir=roadF.clone().applyAxisAngle(new THREE.Vector3(0,1,0),player.yaw*.45);
       if(cameraMode===0){targetPos.copy(pos).addScaledVector(velocityDir,-7.8-player.u*.027-(player.boost?1.0:0)).add(new THREE.Vector3(0,3.5+player.u*.004,0));targetAim.copy(pos).addScaledVector(velocityDir,10+player.u*.15).add(new THREE.Vector3(0,.95,0));fov=55+clamp(player.u/90,0,1)*6;}
       else if(cameraMode===1){targetPos.copy(pos).addScaledVector(forward,1.05).add(new THREE.Vector3(0,1.14,0));targetAim.copy(pos).addScaledVector(forward,35).add(new THREE.Vector3(0,1.1,0));fov=64;}
-      else if(cameraMode===2){targetPos.copy(pos).addScaledVector(forward,-.22).addScaledVector(q.right,.35).add(new THREE.Vector3(0,1.3,0));targetAim.copy(pos).addScaledVector(forward,32).add(new THREE.Vector3(0,1.1,0));fov=69;}
+      else if(cameraMode===2){targetPos.copy(pos).addScaledVector(forward,-.34).addScaledVector(q.right,.35).add(new THREE.Vector3(0,1.16,0));targetAim.copy(pos).addScaledVector(forward,32).add(new THREE.Vector3(0,1.1,0));fov=69;}
       else{targetPos.copy(pos).addScaledVector(velocityDir,-5.6).addScaledVector(q.right,2.5).add(new THREE.Vector3(0,.85,0));targetAim.copy(pos).addScaledVector(velocityDir,18).add(new THREE.Vector3(0,.8,0));fov=59;}
       // Camera impulses are tied to road texture, load and contact, never random noise.
       if(cameraMode===0)targetPos.addScaledVector(q.right,clamp(player.d,-5.5,5.5)-player.d);
@@ -227,3 +227,5 @@ export class GameWorld {
   }
   render(){this.renderer.info.reset();if(this.quality==='low')this.renderer.render(this.scene,this.camera);else this.composer.render();}
 }
+
+

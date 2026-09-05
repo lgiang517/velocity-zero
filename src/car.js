@@ -1,82 +1,52 @@
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-
-const tireMat=new THREE.MeshStandardMaterial({color:'#151b1d',roughness:.94});
-const darkMat=new THREE.MeshStandardMaterial({color:'#152025',metalness:.55,roughness:.32});
-const chrome=new THREE.MeshStandardMaterial({color:'#bdc3c3',metalness:.9,roughness:.2});
-const rimMat=new THREE.MeshStandardMaterial({color:'#8b9698',metalness:.92,roughness:.24});
-const geometryCache=new Map();
-function geo(w,h,d,r=0){const key=[w,h,d,r].join();if(!geometryCache.has(key))geometryCache.set(key,r?new RoundedBoxGeometry(w,h,d,2,r):new THREE.BoxGeometry(w,h,d));return geometryCache.get(key);}
-function box(parent,w,h,d,mat,x,y,z,r=0){const m=new THREE.Mesh(geo(w,h,d,r),mat);m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
-function loft(sections,mat){
-  const pos=[],idx=[];
-  for(const [z,w,bottom,top]of sections){const outline=[[-w*.86,bottom],[-w,bottom+.12],[-w,top-.1],[-w*.8,top],[w*.8,top],[w,top-.1],[w,bottom+.12],[w*.86,bottom]];for(const [x,y]of outline)pos.push(x,y,z);}
-  for(let i=0;i<sections.length-1;i++)for(let j=0;j<8;j++){const a=i*8+j,b=i*8+(j+1)%8,c=(i+1)*8+j,d=(i+1)*8+(j+1)%8;idx.push(a,b,c,b,d,c);}
-  for(let j=1;j<7;j++){idx.push(0,j+1,j);const a=(sections.length-1)*8;idx.push(a,a+j,a+j+1);}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));for(let i=0;i<idx.length;i+=3){const t=idx[i+1];idx[i+1]=idx[i+2];idx[i+2]=t;}g.setIndex(idx);g.computeVertexNormals();const mesh=new THREE.Mesh(g,mat);mesh.castShadow=true;mesh.receiveShadow=true;return mesh;
-}
+let template;
+export async function loadCarModels(){if(!template)template=(await new GLTFLoader().loadAsync('/models/solstice-gt.glb')).scene;}
 export function createCar(config,color='#e85824',simple=false){
-  const root=new THREE.Group(),body=new THREE.Group();root.add(body);
-  const paint=new THREE.MeshPhysicalMaterial({color,metalness:.73,roughness:.26,clearcoat:1,clearcoatRoughness:.12,envMapIntensity:1.6});
-  const glass=new THREE.MeshPhysicalMaterial({color:'#233b42',metalness:.55,roughness:.12,clearcoat:1,envMapIntensity:2.2});
-  const long=config.id==='muscle'?1.1:config.id==='light'?.92:1;
-  body.add(loft([[-2.25,.88,.39,.82],[-2.0,.99,.31,.97],[-1.35,1.02,.31,1.01],[.1,.96,.31,.99],[1.25,1,.33,.88],[2.07,.93,.37,.74],[2.26,.83,.43,.65]],paint));
-  body.add(loft([[-1.38,.87,.86,.95],[-.67,.73,.89,1.48],[.3,.72,.9,1.48],[1.04,.83,.84,.94]],glass));
-  box(body,1.45,.07,1.04,paint,0,1.48,-.2,.055);
-  // Pillars follow the raked windscreen and rear glass.
-  for(const side of[-1,1]){
-    let pillar=box(body,.055,.69,.06,paint,side*.76,1.20,.67,.015);pillar.rotation.x=-.91;pillar.rotation.z=side*.12;
-    pillar=box(body,.052,.66,.06,paint,side*.77,1.19,-1.01,.015);pillar.rotation.x=.87;pillar.rotation.z=-side*.15;
-    box(body,.04,.56,.065,darkMat,side*.745,1.19,-.37);
-    box(body,.035,.055,1.65,paint,side*.875,.95,-.22,.01);
-    box(body,.13,.035,.045,chrome,side*.984,.88,-.35,.012);
-    box(body,.23,.1,.29,paint,side*1.06,1.03,.66,.04);
-    box(body,.075,.14,2.6,darkMat,side*.95,.31,0,.025);
-  }
-  box(body,1.82,.18,.13,darkMat,0,.51,-2.21,.025);
-  box(body,1.24,.16,.11,darkMat,0,.7,-2.265,.025);
-  box(body,1.55,.045,.06,chrome,0,.92,-2.05,.02);
-  box(body,1.88,.09,.4,darkMat,0,.30,-1.98,.02);
-  for(let x=-.6;x<=.61;x+=.3)box(body,.035,.13,.33,darkMat,x,.31,-2.02);
-  const tailMat=new THREE.MeshStandardMaterial({color:'#fa391c',emissive:'#ff1c07',emissiveIntensity:2.4,toneMapped:false});
-  for(const side of[-1,1]){box(body,.69,.055,.035,tailMat,side*.5,.81,-2.265,.015);box(body,.35,.04,.035,tailMat,side*.72,.73,-2.26,.01);}
-  const headMat=new THREE.MeshStandardMaterial({color:'#eefaff',emissive:'#d0efff',emissiveIntensity:3,toneMapped:false});
-  for(const side of[-1,1]){box(body,.52,.06,.09,headMat,side*.61,.7,2.17,.02);box(body,.56,.025,.11,headMat,side*.61,.62,2.18,.01);box(body,.44,.16,.08,darkMat,side*.62,.47,2.2,.02);}
-  box(body,1.18,.17,.08,darkMat,0,.48,2.24,.025);
-  box(body,1.86,.035,.35,darkMat,0,.35,2.08,.015);
-  const plateCanvas=document.createElement('canvas');plateCanvas.width=256;plateCanvas.height=64;const ctx=plateCanvas.getContext('2d');ctx.fillStyle='#e7dfc6';ctx.fillRect(0,0,256,64);ctx.fillStyle='#273432';ctx.font='bold 35px sans-serif';ctx.textAlign='center';ctx.fillText('V E L O C I T Y',128,46);
-  box(body,.48,.115,.016,new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(plateCanvas),roughness:.6}),0,.58,-2.289);
-  if(config.id==='gt'||config.id==='light'){
-    for(const side of[-1,1])box(body,.055,.17,.08,darkMat,side*.62,1.05,-1.9);
-    box(body,1.94,.055,.36,darkMat,0,1.14,-1.94,.025);
-  }
-  const wheels=[],brakes=[],frontWheels=[];
-  const brakeMat=new THREE.MeshStandardMaterial({color:'#596165',metalness:.8,roughness:.45,emissive:'#f74210',emissiveIntensity:0});
-  for(const side of[-1,1])for(const z of[-1.38,1.39]){
-    const pivot=new THREE.Group();pivot.position.set(side*.97,.43,z);body.add(pivot);
-    const wheel=new THREE.Group();pivot.add(wheel);
-    const tire=new THREE.Mesh(new THREE.CylinderGeometry(.40,.40,.29,simple?12:32,1),tireMat);tire.rotation.z=Math.PI/2;wheel.add(tire);
-    const rim=new THREE.Mesh(new THREE.CylinderGeometry(.30,.30,.30,simple?10:24,1),darkMat);rim.rotation.z=Math.PI/2;wheel.add(rim);
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(.292,.019,6,24),rimMat);ring.rotation.y=Math.PI/2;ring.position.x=side*.16;wheel.add(ring);
-    for(let i=0;i<(simple?5:7);i++){const angle=i/(simple?5:7)*Math.PI*2;const spoke=box(wheel,.025,.045,.52,rimMat,side*.167,0,0,.012);spoke.rotation.x=angle;}
-    const hub=new THREE.Mesh(new THREE.CylinderGeometry(.085,.085,.33,12),chrome);hub.rotation.z=Math.PI/2;wheel.add(hub);
-    if(!simple){const brake=new THREE.Mesh(new THREE.CylinderGeometry(.245,.245,.045,24),brakeMat);brake.rotation.z=Math.PI/2;brake.position.x=side*.11;pivot.add(brake);brakes.push(brake);box(pivot,.075,.19,.1,new THREE.MeshStandardMaterial({color:'#eea329',metalness:.4,roughness:.4}),side*.13,.03,-.21,.02);}
-    wheels.push(wheel);if(z>0)frontWheels.push(pivot);
-  }
-  const exhaust=[];
-  const flameMat=new THREE.MeshBasicMaterial({color:'#93c9ff',transparent:true,opacity:.8,toneMapped:false});
-  for(const side of[-1,1]){
-    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(.083,.09,.2,12,1,true),chrome);pipe.rotation.x=Math.PI/2;pipe.position.set(side*.73,.43,-2.23);body.add(pipe);
-    const flame=new THREE.Mesh(new THREE.ConeGeometry(.073,.65,8),flameMat);flame.rotation.x=-Math.PI/2;flame.position.set(side*.73,.43,-2.59);flame.visible=false;body.add(flame);exhaust.push(flame);
-  }
-  // Ground contact patch is soft and independent of dynamic shadows.
-  const shadowCanvas=document.createElement('canvas');shadowCanvas.width=64;shadowCanvas.height=64;const sc=shadowCanvas.getContext('2d');const grad=sc.createRadialGradient(32,32,4,32,32,32);grad.addColorStop(0,'rgba(0,0,0,.65)');grad.addColorStop(1,'rgba(0,0,0,0)');sc.fillStyle=grad;sc.fillRect(0,0,64,64);
-  const shadow=new THREE.Mesh(new THREE.PlaneGeometry(3.6,6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shadowCanvas),transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.025;root.add(shadow);
-  body.scale.z=long;
-  // Dashboard is visible only from the cockpit camera.
-  const cockpit=new THREE.Group();box(cockpit,1.55,.22,.44,darkMat,0,1.01,.52,.07);const steeringWheel=new THREE.Mesh(new THREE.TorusGeometry(.19,.024,8,24),darkMat);steeringWheel.position.set(.36,1.2,.34);steeringWheel.rotation.x=-.3;cockpit.add(steeringWheel);cockpit.visible=false;root.add(cockpit);
-  return {root,body,paint,glass,wheels,frontWheels,tailMat,brakeMat,exhaust,cockpit,steeringWheel,
-    dispose(){const geometries=new Set(),materials=new Set(),textures=new Set();root.traverse(o=>{if(o.isMesh){if(![...geometryCache.values()].includes(o.geometry))geometries.add(o.geometry);for(const m of(Array.isArray(o.material)?o.material:[o.material]))if(![tireMat,darkMat,chrome,rimMat].includes(m))materials.add(m);}});for(const g of geometries)g.dispose();for(const m of materials){if(m.map)textures.add(m.map);m.dispose();}for(const t of textures)t.dispose();},
-    update(p,dt){for(const w of wheels)w.rotation.x+=p.u*dt/.4;for(const w of frontWheels)w.rotation.y=p.steer;body.rotation.z=p.roll;body.rotation.x=p.pitch;body.position.y=-Math.abs(p.roll)*.08;tailMat.emissiveIntensity=p.brake>.08?6:2.4;brakeMat.emissiveIntensity=p.brakeHeat*.8;for(const flame of exhaust){flame.visible=p.boost;flame.scale.y=.8+Math.sin(p.s*2)*.2;}steeringWheel.rotation.z=-p.steer*5;}
-  };
+ if(!template)throw new Error('Car model has not loaded');
+ const root=new THREE.Group(),body=template.clone(true);root.add(body);
+ const mats=new Map(),ownedGeo=[],ownedTextures=[];
+ body.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;const clone=m=>{if(!mats.has(m)){const c=m.clone();c.envMapIntensity=.85;mats.set(m,c);}return mats.get(m);};o.material=Array.isArray(o.material)?o.material.map(clone):clone(o.material);}});
+ const find=name=>[...mats.values()].find(m=>m.name===name);
+ const paint=find('Paint'),glass=find('Glass'),tailMat=find('Tail');paint.color.set(color);
+ const dark=new THREE.MeshStandardMaterial({color:'#10171b',roughness:.65}),brakeMat=new THREE.MeshStandardMaterial({color:'#68727b',metalness:.7,roughness:.4});
+ const wheels=[],frontWheels=[];
+ // Preserve the exported wheel transform and turn around its own axle.
+ for(const w of [...body.children])if(w.name.startsWith('Wheel_')){
+  const pivot=new THREE.Group();pivot.position.copy(w.position);pivot.quaternion.copy(w.quaternion);pivot.scale.copy(w.scale);body.add(pivot);
+  w.position.set(0,0,0);w.quaternion.identity();w.scale.set(1,1,1);pivot.add(w);wheels.push(w);if(w.name.includes('_F'))frontWheels.push(pivot);
+ }
+ body.scale.set(config.id==='light'?.96:1,config.id==='muscle'?1.03:1,config.id==='muscle'?1.06:config.id==='light'?.95:1);
+ function box(parent,size,pos,mat=dark,r=.025){const g=new RoundedBoxGeometry(...size,2,r);ownedGeo.push(g);const m=new THREE.Mesh(g,mat);m.position.set(...pos);parent.add(m);return m;}
+ const cockpit=new THREE.Group();root.add(cockpit);cockpit.visible=false;
+ box(cockpit,[1.76,.50,.78],[0,.56,.55]);
+ box(cockpit,[1.79,.20,2.5],[0,.37,-.12]);
+ box(cockpit,[1.79,.08,.20],[0,1.65,.31]);
+ box(cockpit,[.56,.08,.36],[.34,.96,.48]);
+ box(cockpit,[.35,.40,.75],[0,.54,.02]);
+ // Hood and connected windshield frame remain visible in driver view.
+ box(cockpit,[1.63,.065,1.1],[0,.78,1.52],paint,.03);
+ for(const side of [-1,1]){
+  const pillar=box(cockpit,[.067,1.25,.095],[side*.79,1.28,.48]);pillar.rotation.x=-.68;
+  box(cockpit,[.14,.56,1.8],[side*.84,.62,-.10]);
+  box(cockpit,[.19,.085,.12],[side*1.0,.97,.58],glass);
+ }
+ const wheelGeo=new THREE.TorusGeometry(.177,.021,8,32);ownedGeo.push(wheelGeo);
+ const steeringWheel=new THREE.Group();steeringWheel.position.set(.35,.91,.20);cockpit.add(steeringWheel);
+ const rim=new THREE.Mesh(wheelGeo,dark);steeringWheel.add(rim);
+ box(steeringWheel,[.3,.038,.03],[0,0,0]);box(steeringWheel,[.045,.14,.035],[0,-.06,0]);box(steeringWheel,[.10,.075,.05],[0,0,0]);
+ const canvas=document.createElement('canvas');canvas.width=512;canvas.height=128;const ctx=canvas.getContext('2d'),texture=new THREE.CanvasTexture(canvas);ownedTextures.push(texture);
+ const gaugeMat=new THREE.MeshBasicMaterial({map:texture,toneMapped:false});const gauge=box(cockpit,[.44,.12,.01],[.35,.99,.49],gaugeMat,.005);gauge.rotation.y=Math.PI;
+ const exhaust=[],flameMat=new THREE.MeshBasicMaterial({color:'#8cc9ff',transparent:true,opacity:.8,toneMapped:false});
+ for(const side of [-1,1]){const g=new THREE.ConeGeometry(.055,.5,8);ownedGeo.push(g);const flame=new THREE.Mesh(g,flameMat);flame.rotation.x=-Math.PI/2;flame.position.set(side*.64,.355,-2.57);body.add(flame);flame.visible=false;exhaust.push(flame);}
+ let lastSpeed=-1;
+ return {root,body,paint,glass,wheels,frontWheels,tailMat,brakeMat,cockpit,steeringWheel,exhaust,
+ update(p,dt){for(const w of wheels)w.rotation.x+=p.u*dt/.375;for(const w of frontWheels)w.rotation.y=p.steer;body.rotation.z=p.roll;body.rotation.x=p.pitch;body.position.y=-Math.abs(p.roll)*.06;tailMat.emissiveIntensity=p.brake>.08?4:1.3;for(const f of exhaust){f.visible=p.boost;f.scale.y=.85+Math.sin(p.s*2)*.15;}steeringWheel.rotation.z=-p.steer*5;
+ const speed=Math.round(Math.abs(p.u)*3.6);if(cockpit.visible&&speed!==lastSpeed){lastSpeed=speed;ctx.fillStyle='#061017';ctx.fillRect(0,0,512,128);ctx.fillStyle='#f3efe4';ctx.font='bold 74px monospace';ctx.textAlign='center';ctx.fillText(String(speed).padStart(3,'0'),250,85);ctx.font='18px sans-serif';ctx.fillText('KM/H',400,83);ctx.fillStyle='#ff7d3d';ctx.fillRect(24,107,Math.max(2,460*p.rpm/8000),5);texture.needsUpdate=true;}},
+ dispose(){for(const m of mats.values())m.dispose();for(const g of ownedGeo)g.dispose();for(const t of ownedTextures)t.dispose();dark.dispose();brakeMat.dispose();flameMat.dispose();gaugeMat.dispose();}
+ };
 }
+
+
+

@@ -1,5 +1,11 @@
 # VELOCITY ZERO
 
+**An original coastal driving experience for the browser.** Chase the horizon along a continuous ~6.75 km island road that threads coast, mountain, tunnel, city, harbour and a sea bridge. Dynamic single-track vehicle physics, PBR cars, live-synthesized engine/tyre/music audio, seven race rules and competitors with their own driving styles.
+
+> **Play it now** — build with `npm run build`, then serve `dist/` (or run `npm run preview`). Details below.
+
+---
+
 一款原创的浏览器海岸赛车游戏。沿海岸、山路、隧道、城市、港口和跨海桥驾驶，路线连续，全长约 6.75 公里。
 
 ## 启动

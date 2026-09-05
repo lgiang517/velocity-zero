@@ -53,7 +53,11 @@ export class VehiclePhysics {
     if(Math.abs(this.u)>3){
       this.v+=((frontForce+rearForce)/mass-this.u*this.r)*dt;
       this.r+=(a*frontForce-b*rearForce)/(mass*c.wheelbase*c.wheelbase*.24)*dt;
-      if(assists&&!input.handbrake){this.r=damp(this.r,this.u*Math.tan(this.steer)/c.wheelbase,1.1,dt);this.v*=Math.exp(-.23*dt);}
+      if(assists&&!input.handbrake){
+        const gripYaw=mu*g/Math.max(4,Math.abs(this.u));
+        const desiredYaw=clamp(this.u*Math.tan(this.steer)/c.wheelbase,-gripYaw,gripYaw);
+        this.r=damp(this.r,desiredYaw,1.1,dt);this.v*=Math.exp(-.23*dt);
+      }
     } else { this.v=damp(this.v,0,8,dt);this.r=damp(this.r,this.u*Math.tan(this.steer)/c.wheelbase,10,dt); }
     let engine=Math.min(c.power/Math.max(14,Math.abs(this.u))/mass, c.drive==='AWD'?9.8:10.6)*this.throttle;
     if(this.u>c.maxSpeed)engine*=clamp(1-(this.u-c.maxSpeed)/6,0,1);

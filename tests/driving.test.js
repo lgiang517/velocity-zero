@@ -1,3 +1,4 @@
+import {DrivingInput} from '../src/driving-input.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {VehiclePhysics,DriverAI,CARS} from '../src/physics.js';
@@ -40,4 +41,45 @@ test('AI drives a full coast without teleporting or getting trapped',()=>{
 test('Mixed-input wet driving stays finite and within barriers',()=>{
  const track=new CoastTrack(),p=new VehiclePhysics(CARS[1]);
  for(let i=0;i<120*50;i++){const q=track.sample(p.s);p.step(dt,{throttle:i%500<400?1:0,brake:i%700>620?1:0,steer:Math.sin(i*.009),handbrake:i%400>370,nitro:i%600>450},{curvature:q.curvature,slope:q.slope,wet:.9},false);assert.ok(Number.isFinite(p.s)&&Number.isFinite(p.u));assert.ok(Math.abs(p.d)<=9.501);}
+});
+
+test('Brief keyboard taps make small lane corrections at every road speed',()=>{
+ function pulse(filtered,speed,direction=1){
+  const p=new VehiclePhysics(),keyboard=new DrivingInput();p.u=speed;
+  for(let i=0;i<120;i++){
+   const raw={steer:i<14?direction:0};
+   p.step(dt,filtered?keyboard.sample(raw,p.u,dt,p.config):raw,{curvature:0,slope:0,wet:0},true);
+  }
+  return p.d;
+ }
+ for(const speed of[10,30,55,75]){
+  const direct=pulse(false,speed),gentle=pulse(true,speed);
+  assert.ok(gentle>.03&&gentle<.4,`speed ${speed}: moved ${gentle} m`);
+  assert.ok(gentle<direct*.25);
+  assert.ok(Math.abs(gentle+pulse(true,speed,-1))<1e-9);
+ }
+});
+
+test('Keyboard steering preserves low-speed lock, reduces high-speed lock and returns to centre',()=>{
+ for(const config of CARS){
+  const slow=new DrivingInput(),fast=new DrivingInput();let low,high;
+  for(let i=0;i<120;i++){
+   low=slow.sample({steer:1},5,dt,config);
+   high=fast.sample({steer:1},55,dt,config);
+  }
+  assert.ok(low.steer>.9);
+  assert.ok(high.steer>.25&&high.steer<.6);
+  let released;
+  for(let i=0;i<36;i++)released=fast.sample({steer:0},55,dt,config);
+  assert.equal(released.steer,0);
+  fast.sample({steer:1},55,dt,config);fast.reset();assert.equal(fast.steer,0);
+ }
+});
+
+test('Keyboard steering is consistent across update rates and countersteers promptly',()=>{
+ function turn(rate){const k=new DrivingInput();let value;for(let i=0;i<rate*.5;i++)value=k.sample({steer:1},45,1/rate,CARS[0]);return value.steer;}
+ assert.ok(Math.abs(turn(60)-turn(120))<1e-8);
+ const keyboard=new DrivingInput();for(let i=0;i<120;i++)keyboard.sample({steer:1},55,dt,CARS[0]);
+ let opposite;for(let i=0;i<36;i++)opposite=keyboard.sample({steer:-1},55,dt,CARS[0]);
+ assert.ok(opposite.steer<0);
 });

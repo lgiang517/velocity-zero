@@ -1,7 +1,7 @@
 import {clamp} from './physics.js';
-/** Original synthesized engine, surface sound and adaptive 160 BPM score. No remote audio assets. */
+/** Local CC BY 4.0 racing score, with synthesized engine, surfaces and fallback beat. */
 export class DriveAudio {
-  constructor(){this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.nextBeat=0;this.beat=0;this.lastGear=0;}
+  constructor(){this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.nextBeat=0;this.beat=0;this.lastGear=0;this.musicStatus='idle';this.musicBuffer=null;this.musicSource=null;this.musicActive=false;}
   async init(){
     if(this.ready){await this.ctx.resume();return;}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
@@ -20,7 +20,33 @@ export class DriveAudio {
     this.delay=a.createDelay(.5);this.delay.delayTime.value=.12;this.echo=a.createGain();this.echo.gain.value=0;this.feedback=a.createGain();this.feedback.gain.value=.27;this.engineBus.connect(this.delay);this.delay.connect(this.echo);this.echo.connect(this.compressor);this.delay.connect(this.feedback);this.feedback.connect(this.delay);
     this.musicBus=a.createGain();this.musicBus.gain.value=.14;this.musicFilter=a.createBiquadFilter();this.musicFilter.frequency.value=10000;this.musicBus.connect(this.musicFilter);this.musicFilter.connect(this.compressor);
     this.rivalOsc=a.createOscillator();this.rivalOsc.type='triangle';this.rivalGain=a.createGain();this.rivalGain.gain.value=0;this.pan=a.createStereoPanner();this.rivalOsc.connect(this.rivalGain);this.rivalGain.connect(this.pan);this.pan.connect(this.compressor);this.rivalOsc.start();
-    this.ready=true;this.enabled=true;await a.resume();this.nextBeat=a.currentTime;
+    this.ready=true;this.enabled=true;await a.resume();this.nextBeat=a.currentTime;void this.loadMusic();
+  }
+  async loadMusic(){
+    this.musicStatus='loading';
+    try{
+      const response=await fetch('/audio/exhilarate-kevin-macleod.mp3',{signal:AbortSignal.timeout(20000)});
+      if(!response.ok)throw new Error(`Music HTTP ${response.status}`);
+      this.musicBuffer=await this.ctx.decodeAudioData(await response.arrayBuffer());
+      this.musicStatus='ready';
+    }catch(error){this.musicStatus='fallback';console.warn('Racing track unavailable; using original synthesized score.',error);}
+  }
+  // Audio nodes are allocated only on playback transitions, never every frame.
+  updateMusic(active){
+    const a=this.ctx,t=a.currentTime;
+    if(!active&&this.musicSource){
+      const {source,gain}=this.musicSource;
+      gain.gain.cancelScheduledValues(t);gain.gain.setTargetAtTime(0,t,.045);
+      source.stop(t+.22);this.musicSource=null;
+    }
+    if(active&&this.musicBuffer&&!this.musicSource){
+      const source=a.createBufferSource(),gain=a.createGain();
+      source.buffer=this.musicBuffer;source.loop=true;gain.gain.setValueAtTime(0,t);gain.gain.setTargetAtTime(.72,t,.18);
+      source.connect(gain);gain.connect(this.musicBus);
+      source.onended=()=>{source.disconnect();gain.disconnect();};
+      source.start();this.musicSource={source,gain};
+    }
+    this.musicActive=active;
   }
   setEnabled(value){this.enabled=value;if(this.ready){this.master.gain.setTargetAtTime(value?.4:0,this.ctx.currentTime,.06);if(value)this.ctx.resume();}}
   tone(freq,duration=.15,volume=.12,type='sine',destination=null,when=null){if(!this.ready)return;const a=this.ctx,t=when??a.currentTime,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g);g.connect(destination||this.compressor);o.start(t);o.stop(t+duration+.03);}
@@ -48,7 +74,8 @@ export class DriveAudio {
     if(player.gear!==this.lastGear&&active){if(player.gear>1)this.noiseHit(.11,.06*volume,2400);this.lastGear=player.gear;}
     if(rivals.length){const near=rivals.reduce((a,b)=>Math.abs(a.s-player.s)<Math.abs(b.s-player.s)?a:b);const gap=Math.abs(near.s-player.s);this.rivalGain.gain.setTargetAtTime(active?Math.max(0,1-gap/65)*.075*volume:0,t,.1);this.rivalOsc.frequency.setTargetAtTime(near.rpm/60*2,t,.1);this.pan.pan.setTargetAtTime(clamp((near.d-player.d)/7,-1,1),t,.1);}
     else this.rivalGain.gain.setTargetAtTime(0,t,.1);
-    if(!active){this.nextBeat=t;return;}
+    this.updateMusic(active);
+    if(!active||this.musicBuffer){this.nextBeat=t;return;}
     if(this.nextBeat<t-.5)this.nextBeat=t;
     while(this.nextBeat<t+.1){this.scheduleBeat(this.nextBeat,this.beat++,player,progress);this.nextBeat+=60/160/2;}
   }
@@ -64,3 +91,4 @@ export class DriveAudio {
     if(progress>.8&&step%4===0)this.tone(root*8,.6,.05,'sine',bus,t);
   }
 }
+
