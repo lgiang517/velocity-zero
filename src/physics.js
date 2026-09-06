@@ -1,3 +1,4 @@
+import {barrierLimit} from './road-boundaries.js';
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const damp = (a, b, rate, dt) => a + (b - a) * (1 - Math.exp(-rate * dt));
 export const CARS = [
@@ -84,7 +85,7 @@ export class VehiclePhysics {
     this.slip=Math.abs(Math.atan2(this.v,Math.max(3,Math.abs(this.u))));
     this.roll=damp(this.roll,clamp(-(frontForce+rearForce)/mass*.014,-.12,.12),8,dt);
     this.pitch=damp(this.pitch,clamp(this.lastAccel*.009,-.10,.075),7,dt);
-    if(Math.abs(this.d)>9.5){this.d=Math.sign(this.d)*9.5;this.collide(Math.min(1,Math.abs(lateral)/12));this.v*=-.22;this.yaw=damp(this.yaw,0,4,dt);}
+    this.resolveBarrier(road.curvature,dt);
     this.topSpeed=Math.max(this.topSpeed,this.u*3.6);
     const gear=this.u<-.5?-1:this.u<1?0:clamp(Math.floor(this.u/14)+1,1,6);
     this.shiftEvent=gear!==this.gear&&gear>1;
@@ -92,6 +93,23 @@ export class VehiclePhysics {
     this.gear=gear;
     this.rpm=damp(this.rpm, this.u<1?900+this.throttle*4200:2100+(Math.abs(this.u)%14)/14*5100+this.throttle*500,12,dt);
     if(this.slip>.09&&this.u>12){this.driftTime+=dt;this.score+=this.slip*this.u*dt*10*this.combo;this.combo=Math.min(5,1+Math.floor(this.driftTime/2));this.nitro=clamp(this.nitro+dt*4.5,0,100);}else{this.driftTime=Math.max(0,this.driftTime-dt*2);if(this.driftTime===0)this.combo=1;}
+  }
+  resolveBarrier(curvature=0,dt=1/120){
+    const limit=barrierLimit(this.config,this.yaw,curvature);
+    if(Math.abs(this.d)<=limit)return false;
+    const side=Math.sign(this.d),cos=Math.cos(this.yaw),sin=Math.sin(this.yaw);
+    let along=this.u*cos-this.v*sin;
+    const outward=side*(this.u*sin+this.v*cos);
+    if(outward>.6){this.collide(Math.min(1,outward/16));along*=1-Math.min(.35,outward*.012);}
+    // Resolve the normal velocity in road space, including the heading contribution.
+    // Simply reversing body-space v lets a yawed car drive straight through the rail.
+    const lateral=side*Math.min(0,-Math.max(0,outward)*.025);
+    this.yaw=damp(this.yaw,0,9,dt);
+    this.r=curvature*along;
+    this.u=along*Math.cos(this.yaw)+lateral*Math.sin(this.yaw);
+    this.v=-along*Math.sin(this.yaw)+lateral*Math.cos(this.yaw);
+    this.d=side*Math.min(limit,barrierLimit(this.config,this.yaw,curvature));
+    return true;
   }
   collide(strength=.4){if(this.impact<.1){this.collisions++;this.impact=clamp(.15+strength,0,1);this.u*=1-clamp(strength*.4,.04,.45);this.combo=1;this.score=Math.max(0,this.score-80);}}
 }

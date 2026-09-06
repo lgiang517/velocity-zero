@@ -1,6 +1,6 @@
 # VELOCITY ZERO
 
-**An original coastal driving experience for the browser.** Chase the horizon along a continuous ~6.75 km island road that threads coast, mountain, tunnel, city, harbour and a sea bridge. Dynamic single-track vehicle physics, PBR cars, live-synthesized engine/tyre/music audio, seven race rules and competitors with their own driving styles.
+**An original coastal driving experience for the browser.** Chase the horizon along a continuous ~6.75 km island road that threads coast, mountain, tunnel, city, harbour and a sea bridge. Dynamic single-track vehicle physics, PBR cars, licensed racing music and short event sound effects, seven race rules and competitors with their own driving styles.
 
 > **Play it online:** [**https://lgiang517.github.io/velocity-zero/**](https://lgiang517.github.io/velocity-zero/) — or build locally with `npm run build`, then serve `dist/` (or run `npm run preview`). Details below.
 
@@ -55,3 +55,4 @@ npm run dev
 `npm run build` 检查正式版本能否正常生成。另行通过真实浏览器检查画面、驾驶按键、菜单、镜头、暂停、天气和结算。
 
 `window.__velocity.getState()` 提供只读运行状态。只有开发环境并带 `?test=1` 的地址才提供测试控制入口，正式版本不包含该入口。
+

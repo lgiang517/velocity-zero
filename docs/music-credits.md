@@ -13,8 +13,9 @@ Licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 - Style: aggressive, driving rock; guitar, bass, drums and synth; 170 BPM; about 2:25.
 - Local asset: `public/audio/exhilarate-kevin-macleod.mp3`
 
-The downloaded recording is unmodified. The game loops it, applies playback volume, fades it on transitions, and filters it in tunnels. The original composer does not endorse this game.
+The downloaded recording is unmodified. The game loops it, applies playback volume, and fades it on transitions. The original composer does not endorse this game.
 
 Required visible game credit: **Exhilarate — Kevin MacLeod (incompetech.com) · CC BY 4.0**, with links to the track and license above.
 
-The engine, tire, road and fallback rhythm sounds are synthesized by the game. If the local recording cannot load or decode, the original synthesized score remains available.
+Continuous synthesized engine, rival, wind, tire and fallback bass layers have been removed to eliminate the reported drone. Only short event cues remain. If the recording cannot load or decode, music stays silent.
+

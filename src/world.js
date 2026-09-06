@@ -1,3 +1,4 @@
+import {BARRIER} from './road-boundaries.js';
 import * as THREE from 'three';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
@@ -66,16 +67,12 @@ export class GameWorld {
       // Continuous drainage and the painted boundary keep the carriageway readable at speed.
       const drain=new THREE.Mesh(this.track.ribbon(side*9.05-.12,side*9.05+.12,.012),material('#384441'));this.scene.add(drain);
     }
-    const rails=[],posts=[],reflectors=[];
+    const posts=[],reflectors=[];
+    for(const side of [-1,1]){const rail=new THREE.Mesh(this.track.barrierGeometry(side),material('#a9ada5',.34,.8));rail.material.side=THREE.DoubleSide;rail.receiveShadow=true;this.scene.add(rail);}
     for(let s=0;s<this.track.length;s+=7){const q=this.track.sample(s);for(const side of[-1,1]){
-      // Overlap each straight rail segment (z > spacing) so it reads as one continuous
-      // barrier through corners; posts land on every node, rails are yawed then pitched
-      // (YXZ in instance) so they stay glued to the road on slopes.
-      rails.push({p:this.track.point(s,side*9.85,.79),ry:q.heading,rx:-Math.asin(q.slope),x:.14,y:.25,z:7.6});
-      posts.push({p:this.track.point(s,side*9.91,.46),x:.13,y:.92,z:.15,ry:q.heading});
-      if(Math.round(s/7)%2===0)reflectors.push({p:this.track.point(s,side*9.74,.84),x:.04,y:.1,z:.13,ry:q.heading,color:side<0?'#f4e8c4':'#f58542'});
+      posts.push({p:this.track.point(s,side*(BARRIER.offset+.06),.46),x:.13,y:.92,z:.15,ry:q.heading});
+      if(Math.round(s/7)%2===0)reflectors.push({p:this.track.point(s,side*(BARRIER.offset-.11),.84),x:.04,y:.1,z:.13,ry:q.heading,color:side<0?'#f4e8c4':'#f58542'});
     }}
-    instance(this.scene,new THREE.BoxGeometry(1,1,1),material('#a9ada5',.34,.8),rails);
     instance(this.scene,new THREE.BoxGeometry(1,1,1),material('#5e6760',.45,.65),posts);
     instance(this.scene,new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:'#fff3cb',emissive:'#dd9f56',emissiveIntensity:.35}),reflectors);
   }

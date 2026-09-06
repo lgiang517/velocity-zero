@@ -71,7 +71,7 @@ function step(dt){
   }
   if(state!=='race')return;
   raceTime+=dt;if(raceTime>.7)$('countdown').textContent='';
-  const q=track.sample(player.s);player.step(dt,drivingInput.sample(readInput(),player.u,dt,player.config),{curvature:q.curvature,slope:q.slope,wet:world.wet},assist);
+  const q=track.sample(player.s);player.step(dt,drivingInput.sample(readInput(),player.u,dt,player.config,{yaw:player.yaw,v:player.v,r:player.r,grip:player.grip,curvature:q.curvature,assists:assist}),{curvature:q.curvature,slope:q.slope,wet:world.wet},assist);
   const all=[player,...opponents.map(o=>o.p),...traffic.map(o=>o.p)];
   for(const o of opponents){if(o.finished)continue;const q=track.sample(o.p.s);const input=o.ai.controls(track,player,all,raceTime);o.p.step(dt,input,{curvature:q.curvature,slope:q.slope,wet:world.wet},true);if(o.p.s>=finishS&&raceMode.id!=='pursuit'){o.finished=true;o.p.u=0;}}
   for(const o of traffic){o.p.s+=o.p.u*dt;if(o.p.s-player.s<-160){o.p.s+=track.length;o.passed=false;}}
@@ -82,6 +82,7 @@ function step(dt){
     if(traffic.includes(o)&&gap< -4&&!o.passed){o.passed=true;if(Math.abs(lateral)>1.95&&Math.abs(lateral)<3.7&&player.u-o.p.u>15){nearMisses++;score+=250;player.nitro=clamp(player.nitro+13,0,100);notice('NEAR MISS  +250');audio.reward();}}
     if(gap>5&&gap<25&&Math.abs(lateral)<1.5&&player.u>30){player.nitro=clamp(player.nitro+dt*3,0,100);player.u+=dt*.25;}
   }
+  player.resolveBarrier(track.sample(player.s).curvature);for(const o of opponents)o.p.resolveBarrier(track.sample(o.p.s).curvature);
   if(player.impact>.75&&collisionCooldown===0){collisionCooldown=.3;audio.collision(player.impact);world.emit(car.root.position,'#ffd383',12);}
   if(raceMode.id==='pursuit'){const close=opponents.some(o=>Math.abs(o.p.s-player.s)<12);bust=clamp(bust+(close&&player.u<9?dt:-dt*.5),0,3);if(bust>1)notice('KEEP MOVING  ·  PATROL CLOSE');if(bust>=3)finish(true);}
   if(raceMode.timer&&raceTime>=raceMode.timer)finish();else if(!raceMode.timer&&player.s>=finishS)finish();
@@ -151,3 +152,4 @@ async function init(){
   }catch(error){fail(error);}
 }
 init();
+
