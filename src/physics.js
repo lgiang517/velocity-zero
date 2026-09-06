@@ -4,7 +4,7 @@ export const damp = (a, b, rate, dt) => a + (b - a) * (1 - Math.exp(-rate * dt))
 export const CARS = [
   { id: 'gt', name: 'SOLSTICE GT', type: 'GT / ALL-WHEEL DRIVE', description: 'Planted through the corner. Relentless on the straight.', mass: 1540, hp: 560, power: 350000, drive: 'AWD', grip: 1.2, response: 8, steer: .48, wheelbase: 2.72, drag: .42, maxSpeed: 88, brake: 13, rearGrip: 1.03 },
   { id: 'light', name: 'KAZE R', type: 'LIGHTWEIGHT / REAR-WHEEL DRIVE', description: 'A lighter touch. A livelier rear. Made for the mountain.', mass: 1080, hp: 320, power: 225000, drive: 'RWD', grip: 1.09, response: 12, steer: .56, wheelbase: 2.43, drag: .38, maxSpeed: 78, brake: 12.5, rearGrip: .92 },
-  { id: 'muscle', name: 'IRONWOOD V8', type: 'MUSCLE / REAR-WHEEL DRIVE', description: 'Big displacement. Heavy hands. Unmistakable character.', mass: 1840, hp: 720, power: 480000, drive: 'RWD', grip: 1.02, response: 5, steer: .43, wheelbase: 2.95, drag: .53, maxSpeed: 94, brake: 10.5, rearGrip: .98 },
+  { id: 'muscle', name: 'IRONWOOD V8', type: 'MUSCLE / REAR-WHEEL DRIVE', description: 'Big displacement. Heavy hands. Unmistakable character.', mass: 1840, hp: 720, power: 480000, drive: 'RWD', grip: 1.02, response: 8, steer: .43, wheelbase: 2.95, drag: .53, maxSpeed: 94, brake: 10.5, rearGrip: .98 },
 ];
 export const MODES = [
   {id:'sprint',name:'SPRINT',desc:'One coast. One rival. First to the finish.',rivals:1,laps:1,traffic:0},
@@ -51,15 +51,21 @@ export class VehiclePhysics {
     const rearLimit=rearLoad*mu*c.rearGrip*handbrake*powerSlip*brakeLock;
     const frontForce=frontLimit*Math.tanh(frontSlip*75000/frontLimit);
     const rearForce=rearLimit*Math.tanh(rearSlip*78000/rearLimit);
-    if(Math.abs(this.u)>3){
-      this.v+=((frontForce+rearForce)/mass-this.u*this.r)*dt;
-      this.r+=(a*frontForce-b*rearForce)/(mass*c.wheelbase*c.wheelbase*.24)*dt;
-      if(assists&&!input.handbrake){
-        const gripYaw=mu*g/Math.max(4,Math.abs(this.u));
-        const desiredYaw=clamp(this.u*Math.tan(this.steer)/c.wheelbase,-gripYaw,gripYaw);
-        this.r=damp(this.r,desiredYaw,1.1,dt);this.v*=Math.exp(-.23*dt);
-      }
-    } else { this.v=damp(this.v,0,8,dt);this.r=damp(this.r,this.u*Math.tan(this.steer)/c.wheelbase,10,dt); }
+    // Blend parking kinematics into tyre dynamics instead of switching at 3 m/s.
+    const blend=clamp((Math.abs(this.u)-2)/8,0,1);
+    const dynamicWeight=blend*blend*(3-2*blend);
+    const kinematicR=this.u*Math.tan(this.steer)/c.wheelbase;
+    const kinematicV=b*kinematicR;
+    const dynamicV=this.v+((frontForce+rearForce)/mass-this.u*this.r)*dt;
+    const dynamicR=this.r+(a*frontForce-b*rearForce)/(mass*c.wheelbase*c.wheelbase*.24)*dt;
+    this.v=damp(this.v,kinematicV,12,dt)*(1-dynamicWeight)+dynamicV*dynamicWeight;
+    this.r=damp(this.r,kinematicR,12,dt)*(1-dynamicWeight)+dynamicR*dynamicWeight;
+    // ESC damps excess yaw; it does not steer toward the road or add a second driver.
+    if(assists&&!input.handbrake){
+      const maxYaw=mu*g/Math.max(4,Math.abs(this.u));
+      const stableYaw=clamp(this.r,-maxYaw,maxYaw);
+      this.r=damp(this.r,stableYaw,5,dt);
+    }
     let engine=Math.min(c.power/Math.max(14,Math.abs(this.u))/mass, c.drive==='AWD'?9.8:10.6)*this.throttle;
     if(this.u>c.maxSpeed)engine*=clamp(1-(this.u-c.maxSpeed)/6,0,1);
     this.shifting=Math.max(0,this.shifting-dt);
@@ -80,11 +86,11 @@ export class VehiclePhysics {
     const advance=along/Math.max(.65,1-road.curvature*this.d)*dt;
     this.s+=advance;this.distance+=Math.max(0,advance);
     this.d+=lateral*dt;
-    this.yaw+=(this.r-road.curvature*along)*dt;
+    this.yaw+=this.r*dt-road.curvature*advance;
     this.yaw=Math.atan2(Math.sin(this.yaw),Math.cos(this.yaw));
     this.slip=Math.abs(Math.atan2(this.v,Math.max(3,Math.abs(this.u))));
-    this.roll=damp(this.roll,clamp(-(frontForce+rearForce)/mass*.014,-.12,.12),8,dt);
-    this.pitch=damp(this.pitch,clamp(this.lastAccel*.009,-.10,.075),7,dt);
+    this.roll=damp(this.roll,clamp(-((frontForce+rearForce)/mass*dynamicWeight+this.u*this.r*(1-dynamicWeight))*.010,-.09,.09),8,dt);
+    this.pitch=damp(this.pitch,clamp(this.lastAccel*.004,-.045,.035),5,dt);
     this.resolveBarrier(road.curvature,dt);
     this.topSpeed=Math.max(this.topSpeed,this.u*3.6);
     const gear=this.u<-.5?-1:this.u<1?0:clamp(Math.floor(this.u/14)+1,1,6);
@@ -137,3 +143,4 @@ export class DriverAI {
     return {steer:clamp(wheelAngle/(p.config.steer/(1+p.u/32)),-1,1),throttle:clamp((targetSpeed-p.u)*.3,0,1),brake:clamp((p.u-targetSpeed)*.19,0,.9),handbrake:this.personality==='drifter'&&Math.abs(curvature)>.018&&p.u>27,nitro:aggressive&&Math.abs(curvature)<.002&&gap>12};
   }
 }
+

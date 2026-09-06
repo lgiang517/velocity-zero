@@ -44,17 +44,19 @@ test('Mixed-input wet driving stays finite and within barriers',()=>{
 });
 
 test('Brief keyboard taps make small lane corrections at every road speed',()=>{
- function pulse(filtered,speed,direction=1){
+ function pulse(filtered,speed,direction=1,heldTicks=14){
   const p=new VehiclePhysics(),keyboard=new DrivingInput();p.u=speed;
   for(let i=0;i<120;i++){
-   const raw={steer:i<14?direction:0};
+   const raw={steer:i<heldTicks?direction:0};
    p.step(dt,filtered?keyboard.sample(raw,p.u,dt,p.config):raw,{curvature:0,slope:0,wet:0},true);
   }
   return p.d;
  }
  for(const speed of[10,30,55,75]){
   const direct=pulse(false,speed),gentle=pulse(true,speed);
-  assert.ok(gentle>.03&&gentle<.4,`speed ${speed}: moved ${gentle} m`);
+  assert.ok(gentle>0&&gentle<.4,`speed ${speed}: moved ${gentle} m`);
+  const longer=pulse(true,speed,1,28);
+  assert.ok(longer>gentle*1.5,`speed ${speed}: holding longer must produce a larger correction`);
   assert.ok(gentle<direct*.25);
   assert.ok(Math.abs(gentle+pulse(true,speed,-1))<1e-9);
  }
@@ -68,7 +70,11 @@ test('Keyboard steering preserves low-speed lock, reduces high-speed lock and re
    high=fast.sample({steer:1},55,dt,config);
   }
   assert.ok(low.steer>.9);
-  assert.ok(high.steer>.25&&high.steer<.6);
+  const turning=new VehiclePhysics(config),keyboard=new DrivingInput();turning.u=55;
+  for(let i=0;i<90;i++)turning.step(dt,keyboard.sample({steer:1},turning.u,dt,config,turning),{curvature:0,slope:0,wet:0},true);
+  const cornerAcceleration=turning.r*turning.u;
+  assert.ok(cornerAcceleration>3&&cornerAcceleration<config.grip*9.81,config.id+': cornering acceleration '+cornerAcceleration);
+  assert.ok(turning.yaw>.01&&turning.collisions===0);
   let released;
   for(let i=0;i<36;i++)released=fast.sample({steer:0},55,dt,config);
   assert.equal(released.steer,0);

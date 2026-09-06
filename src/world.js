@@ -208,8 +208,8 @@ export class GameWorld {
       else{targetPos.copy(pos).addScaledVector(velocityDir,-5.6).addScaledVector(q.right,2.5).add(new THREE.Vector3(0,.85,0));targetAim.copy(pos).addScaledVector(velocityDir,18).add(new THREE.Vector3(0,.8,0));fov=59;}
       // Camera impulses are tied to road texture, load and contact, never random noise.
       if(cameraMode===0)targetPos.addScaledVector(q.right,clamp(player.d,-5.5,5.5)-player.d);
-      const pulse=Math.sin(player.s*1.3)*Math.min(player.u/90,1)*.012;
-      targetPos.y+=pulse+Math.sin(player.impact*18)*player.impact*.15+player.pitch*.65;
+      const pulse=0;
+      targetPos.y+=pulse+Math.sin(player.impact*18)*player.impact*.15+player.pitch*.15;
     }
     if(!this.initializedCamera){this.cameraPos.copy(targetPos);this.cameraAim.copy(targetAim);this.initializedCamera=true;}
     this.cameraPos.lerp(targetPos,1-Math.exp(-(mode==='menu'?2:cameraMode===1||cameraMode===2?26:6)*dt));
