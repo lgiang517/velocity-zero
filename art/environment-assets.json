@@ -1,0 +1,34 @@
+[
+  {
+    "name": "aerial_rocks_04-diffuse.jpg",
+    "bytes": 841479,
+    "md5": "7ca11c8d520150d14c193056420ac086",
+    "source": "https://polyhaven.com/a/aerial_rocks_04",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_rocks_04/aerial_rocks_04_diff_1k.jpg",
+    "license": "CC0"
+  },
+  {
+    "name": "aerial_rocks_04-nor_gl.jpg",
+    "bytes": 1242717,
+    "md5": "ba53584e58dcb1c43eb2435465dfa13d",
+    "source": "https://polyhaven.com/a/aerial_rocks_04",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_rocks_04/aerial_rocks_04_nor_gl_1k.jpg",
+    "license": "CC0"
+  },
+  {
+    "name": "aerial_rocks_04-rough.jpg",
+    "bytes": 449735,
+    "md5": "b5d7bc82c2b8a4a76e2b33ff20b58cd3",
+    "source": "https://polyhaven.com/a/aerial_rocks_04",
+    "url": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/aerial_rocks_04/aerial_rocks_04_rough_1k.jpg",
+    "license": "CC0"
+  },
+  {
+    "name": "venice_sunset-hdri.hdr",
+    "bytes": 1440400,
+    "md5": "a5ec4d30fc3421c214a17b208fb66d5f",
+    "source": "https://polyhaven.com/a/venice_sunset",
+    "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/venice_sunset_1k.hdr",
+    "license": "CC0"
+  }
+]

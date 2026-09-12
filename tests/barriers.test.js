@@ -18,7 +18,7 @@ function cornerLateral(p,x,z){
  }
  return lateral;
 }
-test('Entire 6.75 km: all three car footprints clear both actual rails at every 3 m station',()=>{
+test('Entire route: all three car footprints clear both actual rails at every 3 m station',()=>{
  let checked=0;
  for(const config of CARS){
   const p=new VehiclePhysics(config),h=vehicleEnvelope(config);
@@ -60,3 +60,20 @@ test('High-speed angled impacts on both rails remain contained and allow inward 
  }
 });
 
+
+test('Road paint follows the curve within 1.5 cm even at the tightest hairpins',()=>{
+ const g=track.roadRibbon(),p=g.attributes.position,uv=g.attributes.uv,columns=g.userData.lateralStations,stride=columns.length,rows=g.userData.longitudinalSegments;
+ for(const d of [-.12,.12]){
+  const column=columns.indexOf(d);assert.ok(column>=0);
+  for(let row=0;row<rows;row++){
+   const a=row*stride+column,b=a+stride,s=(uv.getY(a)+uv.getY(b))*.5;
+   const exact=track.curve.getPointAt(s/track.length),tan=track.curve.getTangentAt(s/track.length),norm=Math.hypot(tan.x,tan.z);
+   const x=exact.x+tan.z/norm*d,z=exact.z-tan.x/norm*d;
+   const error=Math.hypot((p.getX(a)+p.getX(b))*.5-x,(p.getY(a)+p.getY(b))*.5-exact.y,(p.getZ(a)+p.getZ(b))*.5-z);
+   assert.ok(error<.015,`paint deviates ${error} m at station ${s}`);
+  }
+ }
+ for(let column=0;column<stride;column++)assert.equal(Math.hypot(p.getX(column)-p.getX(rows*stride+column),p.getY(column)-p.getY(rows*stride+column),p.getZ(column)-p.getZ(rows*stride+column)),0);
+ const legacy=track.ribbon(-20,-10.3);assert.equal(legacy.attributes.position.count,(track.count+1)*2);
+ g.dispose();legacy.dispose();
+});

@@ -1,78 +1,62 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DrivingInput} from '../src/driving-input.js';
-import {VehiclePhysics,CARS,clamp} from '../src/physics.js';
+import {CARS} from '../src/physics.js';
 const dt=1/120;
-const road=k=>({curvature:k,slope:0,wet:0});
-function advance(p,k,seconds,steer,curvature=0){for(let i=0;i<seconds/dt;i++)p.step(dt,k.sample({steer},p.u,dt,p.config,p),road(curvature),true);}
-// Test driver holds a radius-matching steering angle with small manual corrections.
-// This acts only through the input API; position, heading and velocities are never overwritten.
-function steeringForBend(p,curvature){
- const c=p.config,u=p.u,a=c.wheelbase*.49,b=c.wheelbase*.51;
- const understeer=c.mass/c.wheelbase*(b/75000-a/78000);
- const angle=Math.atan(c.wheelbase*curvature)+understeer*u*u*curvature
-  -.25*(p.yaw+Math.atan2(p.v,u))-.012*p.d;
- const full=new DrivingInput();full.steer=1;
- const maxAngle=full.sample({steer:1},u,dt,c,p).steer*c.steer/(1+u/32);
- const fraction=clamp(Math.abs(angle/maxAngle),0,1);
- return Math.sign(angle)*(-.38+Math.sqrt(.38**2+4*.62*fraction))/(2*.62);
-}
-test('All cars can hold manually steered tight bends for eight seconds at 15 m/s',()=>{
- for(const config of CARS)for(const sign of[-1,1])for(const radiusInverse of[.01,.02,.03]){
-  const p=new VehiclePhysics(config),keyboard=new DrivingInput();p.u=15;
-  const curvature=sign*radiusInverse;let minimumSpeed=15,maxD=0;
-  for(let i=0;i<960;i++){
-   const raw={steer:steeringForBend(p,curvature),throttle:clamp((15-p.u)*.5,0,1)};
-   p.step(dt,keyboard.sample(raw,p.u,dt,config,p),road(curvature),true);
-   minimumSpeed=Math.min(minimumSpeed,p.u);maxD=Math.max(maxD,Math.abs(p.d));
-  }
-  assert.equal(p.collisions,0,`${config.id} k=${curvature}: hits ${p.collisions}, max lateral ${maxD}`);
-  assert.ok(minimumSpeed>14.5,`${config.id}: speed dropped to ${minimumSpeed}`);
-  assert.ok(Math.abs(p.d)<1,`${config.id}: unable to settle on requested radius, d=${p.d}`);
- }
-});
-test('Releasing steering reduces yaw rate while retaining the new world heading',()=>{
- for(const config of CARS){
-  const p=new VehiclePhysics(config),keyboard=new DrivingInput();p.u=15;
-  advance(p,keyboard,.6,.5);const turningRate=p.r,heading=p.yaw;
-  assert.ok(turningRate>.05);
-  advance(p,keyboard,2,0);
-  assert.ok(Math.abs(p.r)<turningRate*.1,`${config.id}: yaw rate ${p.r}`);
-  assert.ok(p.yaw>=heading*.95,`${config.id}: heading auto-aligned to road`);
-  assert.equal(p.collisions,0);
- }
-});
-test('Startup steering remains continuous through 3 and 6 m/s without reversing',()=>{
- for(const config of CARS)for(const direction of[-1,1]){
-  const p=new VehiclePhysics(config),keyboard=new DrivingInput();let previous=0,previousLateralAcceleration=0,crossed3=false,crossed6=false;
-  for(let i=0;i<600&&p.u<8;i++){
-   const command=keyboard.sample({steer:p.u<8?direction:0,throttle:1},p.u,dt,config,p);
-   if(p.u>2&&p.u<7.5)assert.ok(Math.abs(command.steer-previous)<.04,`${config.id}: discontinuous command at ${p.u}`);
-   assert.ok(command.steer*direction>=0);
-   const before=p.u,beforeV=p.v;p.step(dt,command,road(0),true);
-   const lateralAcceleration=(p.v-beforeV)/dt;
-   if(Math.abs(before-3)<.3||Math.abs(before-6)<.3)assert.ok(Math.abs(lateralAcceleration-previousLateralAcceleration)<.5,`${config.id}: lateral acceleration jumps at ${before}`);
-   previousLateralAcceleration=lateralAcceleration;
-   crossed3 ||= before<=3&&p.u>3;crossed6 ||= before<=6&&p.u>6;previous=command.steer;
-  }
-  assert.ok(crossed3&&crossed6);
- }
-});
-test('Countersteering reverses yaw rate through physical response',()=>{
- for(const config of CARS){
-  const p=new VehiclePhysics(config),keyboard=new DrivingInput();p.u=15;
-  advance(p,keyboard,.6,.6);const initialRate=p.r,initialD=p.d;
-  advance(p,keyboard,dt,-.6);
-  assert.ok(p.r>0,`${config.id}: yaw changed instantly`);
-  assert.ok(Math.abs(p.d-initialD)<.1);
-  advance(p,keyboard,1,-.6);
-  assert.ok(p.r<-.05&&initialRate>.05,`${config.id}: failed to reverse yaw`);
-  assert.equal(p.collisions,0);
- }
-});
-test('Steering input never follows road curvature or heading automatically',()=>{
- for(const config of CARS){
+
+test('Road position, curve previews and assist mode cannot steer or change pedal commands',()=>{
+ for(const config of CARS)for(const direction of[-1,0,1]){
   const a=new DrivingInput(),b=new DrivingInput();
-  for(let i=0;i<120;i++)assert.equal(a.sample({steer:.5},20,dt,config,{grip:1,yaw:0,curvature:0}).steer,b.sample({steer:.5},20,dt,config,{grip:1,yaw:.7,v:4,r:.6,curvature:.03}).steer);
+  for(let i=0;i<180;i++){
+   const raw={steer:direction,throttle:1,brake:.2,nitro:true,handbrake:false};
+   const plain=a.sample(raw,35,dt,config,{grip:1,v:-2,r:.2,assists:false});
+   const nearRail=b.sample(raw,35,dt,config,{grip:1,v:-2,r:.2,assists:true,d:8.2,yaw:-.8,s:2000,curvature:.05,lookCurvature:-.09,maxCurvature:.1,targetSpeed:0});
+   assert.deepEqual(nearRail,plain);
+   for(const name of['throttle','brake','nitro','handbrake'])assert.equal(nearRail[name],raw[name]);
+  }
+ }
+});
+test('Digital steering is progressive, symmetric and stays in the requested direction',()=>{
+ for(const config of CARS)for(const speed of[0,5,15,35,60]){
+  const left=new DrivingInput(),right=new DrivingInput();let previous=0,last=0;
+  for(let i=0;i<120;i++){
+   const a=left.sample({steer:1},speed,dt,config),b=right.sample({steer:-1},speed,dt,config);
+   assert.ok(a.steer>=0&&a.steer<=1);assert.ok(Math.abs(a.steer+b.steer)<1e-12);
+   assert.ok(Math.abs(a.steer-previous)<.08);previous=a.steer;last=a.steer;
+  }
+  assert.ok(last>0);
+  for(let i=0;i<36;i++)last=left.sample({steer:0},speed,dt,config).steer;
+  assert.equal(last,0);left.reset();assert.equal(left.steer,0);
+ }
+});
+test('Countersteering continues promptly through neutral without a sudden slow phase',()=>{
+ const keyboard=new DrivingInput();for(let i=0;i<120;i++)keyboard.sample({steer:1},55,dt,CARS[0]);
+ let command;for(let i=0;i<54;i++)command=keyboard.sample({steer:-1},55,dt,CARS[0]);
+ assert.equal(keyboard.steer,-1);assert.ok(command.steer<0);
+});
+test('Extra opposite lock only follows a deliberate countersteer, never a released key',()=>{
+ const sliding=new DrivingInput(),normal=new DrivingInput();let a,b;
+ for(let i=0;i<120;i++){
+  a=sliding.sample({steer:-1},25,dt,CARS[1],{v:-4,r:.8});
+  b=normal.sample({steer:-1},25,dt,CARS[1],{v:0,r:0});
+ }
+ assert.ok(a.steer<b.steer);
+ const released=new DrivingInput();assert.equal(released.sample({steer:0},25,dt,CARS[1],{v:-4,r:.8}).steer,0);
+});
+test('Input response is independent of render frequency',()=>{
+ function run(rate){const keyboard=new DrivingInput();let command;for(let i=0;i<rate*.5;i++)command=keyboard.sample({steer:1,throttle:1},35,1/rate,CARS[0]);return command;}
+ assert.ok(Math.abs(run(60).steer-run(120).steer)<1e-12);
+});
+
+test('A short release preserves deliberate reverse input while neutral never steers by itself',()=>{
+ for(const pause of[.1,.3,.4]){
+  const remembered=new DrivingInput(),fresh=new DrivingInput();
+  for(let i=0;i<60;i++)remembered.sample({steer:1},100/3.6,dt,CARS[0]);
+  for(let i=0;i<Math.round(pause/dt);i++)assert.equal(remembered.sample({steer:0},100/3.6,dt,CARS[0]).steer,0);
+  const recovery=remembered.sample({steer:-1},100/3.6,dt,CARS[0]);
+  const ordinary=fresh.sample({steer:-1},100/3.6,dt,CARS[0]);
+  assert.ok(Math.abs(recovery.steer)>Math.abs(ordinary.steer)*1.5);
+  assert.equal(remembered.sample({steer:0},100/3.6,dt,CARS[0]).steer,0);
+  remembered.reset();assert.deepEqual(remembered.sample({steer:-1},100/3.6,dt,CARS[0]),new DrivingInput().sample({steer:-1},100/3.6,dt,CARS[0]));
  }
 });

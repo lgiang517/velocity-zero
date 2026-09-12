@@ -1,5 +1,7 @@
 # 转向与起步问题复盘（2026-09-06）
 
+> 历史版本记录。当前操控、路线与验证指标见 [最新操控验证](racing-handling-validation.md)。
+
 本记录取代 road-safety-validation.md 中旧版键盘自动沿路稳定的描述。
 
 确认原因：

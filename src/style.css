@@ -10,3 +10,82 @@ html[lang="zh-CN"] body{font-family:"Microsoft YaHei","PingFang SC",sans-serif}
 html[lang="zh-CN"] h1{font-family:"Microsoft YaHei","PingFang SC",sans-serif;font-size:clamp(48px,5.4vw,82px);line-height:1.2;letter-spacing:-.04em}
 html[lang="zh-CN"] .panel-title,html[lang="zh-CN"] .dialog h2{font-family:"Microsoft YaHei","PingFang SC",sans-serif;letter-spacing:0;font-size:clamp(30px,3.2vw,48px);line-height:1.3}
 html[lang="zh-CN"] .eyebrow,html[lang="zh-CN"] .micro,html[lang="zh-CN"] .nav-item,html[lang="zh-CN"] .primary-button,html[lang="zh-CN"] .text-button{letter-spacing:.08em}
+
+/* Keep cockpit telemetry compact and below the forward road view. */
+body.driver-view .speedometer{width:205px}
+body.driver-view .speed-readout strong{font-size:68px}
+body.driver-view .speed-readout>span{font-size:24px}
+body.driver-view .speed-readout small{margin-bottom:16px}
+body.driver-view .rpm-bars{height:12px}
+body.driver-view #reward{top:20%;font-size:10px}
+body.driver-view #drift-score{top:auto;bottom:25%;font-size:24px}
+@media(max-width:700px){body.driver-view .speedometer{width:155px}body.driver-view .speed-readout strong{font-size:52px}body.driver-view .speed-readout>span{font-size:20px}body.driver-view .speed-readout small{margin-bottom:11px}}
+
+/* Touch devices use safe-area-aware controls and a layout sized to the visible viewport. */
+html,body{width:100%;height:100%;overscroll-behavior:none}
+#app{position:fixed;height:100vh;height:100dvh;overflow:hidden}
+#world{touch-action:none}
+#touch-tools,.mobile-drive-tip,.mobile-controls-help{display:none}
+@media (pointer:coarse),(max-width:700px){
+  #menu{padding:0 max(18px,env(safe-area-inset-left)) 0 max(18px,env(safe-area-inset-right));overflow:hidden}
+  .topbar{height:calc(72px + env(safe-area-inset-top));padding-top:env(safe-area-inset-top);border:0}
+  .topbar .brand-mark{font-size:35px}.brand>span:last-child{font-size:9px}
+  .top-actions{gap:4px}.top-actions .live-dot,.live-label{display:none}
+  .icon-button,#fullscreen{display:inline-grid;width:44px;height:44px;font-size:23px}
+  .topbar nav{position:fixed;z-index:8;left:0;right:0;bottom:0;height:calc(60px + env(safe-area-inset-bottom));padding:0 max(16px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(16px,env(safe-area-inset-left));display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:#14262bf5;border-top:1px solid #c6d0c62b}
+  .nav-item{height:60px;font-size:13px;letter-spacing:.08em}.nav-item span{display:none}.nav-item.active:after{top:0;bottom:auto;left:25%;right:25%}
+  .menu-panel{inset:calc(78px + env(safe-area-inset-top)) max(18px,env(safe-area-inset-right)) calc(76px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));min-width:0}
+  #drive-panel{display:grid;grid-template-rows:auto minmax(80px,1fr) auto;gap:10px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:4px}
+  .hero-copy{position:static;grid-row:1;padding-top:10px}.hero-copy .eyebrow{font-size:10px;letter-spacing:.1em}
+  h1,html[lang="zh-CN"] h1{font-size:clamp(38px,10.3vw,58px);line-height:1.1;margin:15px 0 12px}.hero-copy p{font-size:14px;line-height:1.6;margin:0}
+  .hero-copy .mobile-drive-tip{display:block;font-size:12px;color:#efc0a1;margin-top:10px}.edition,.world-label,.drive-hint,.menu-footer{display:none}
+  .vehicle-caption{position:static;grid-row:2;align-self:end;justify-self:end;min-width:0;text-align:right;margin:8px 0}
+  .vehicle-caption h2{font-size:25px;margin:6px 0}.vehicle-caption .micro{font-size:9px}.vehicle-caption p{font-size:10px}
+  .vehicle-caption .text-button{display:flex;min-height:44px;font-size:11px;width:auto;margin:0 0 0 auto;padding:8px 0;gap:18px}
+  .drive-bottom{position:static;grid-row:3;display:grid;grid-template-columns:minmax(0,1fr);gap:10px;width:100%}
+  .route-card{width:100%;min-width:0;height:80px;gap:12px;padding:12px 14px}.route-number{font-size:30px;padding-right:13px}.route-info{min-width:0;gap:7px}
+  .route-info .micro{font-size:9px}.route-info .micro>span{margin-left:6px}.route-info strong{font-size:21px;overflow:hidden;text-overflow:ellipsis}.route-meta{font-size:9px;gap:10px}.tag{font-size:8px}.route-art{width:56px;margin-left:auto;flex-shrink:0}.route-arrow{display:none}
+  .drive-bottom>.primary-button{min-width:0;width:100%;height:56px;font-size:15px}.primary-button small{display:none}
+  .side-panel{max-width:600px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding:6px 4px 20px 0}
+  .panel-title,html[lang="zh-CN"] .panel-title{font-size:32px;margin:12px 0 20px}.panel-title>span{font-size:11px;line-height:1.5;letter-spacing:.04em}
+  .eyebrow{font-size:11px;letter-spacing:.06em}.car-option{padding:14px}.car-option>span{font-size:10px}.car-option strong{font-size:26px}.car-option p{font-size:13px}.car-option .car-stats{font-size:10px;line-height:1.5}
+  .paint-row{gap:7px;flex-wrap:wrap}.paint-row>.micro{font-size:12px}.swatch{width:44px;height:44px;border-width:10px;border-color:#17292d;border-radius:50%}.swatch.selected{outline-offset:1px}
+  .setting{font-size:14px;gap:10px;min-height:66px;padding:10px 0}.setting select{font-size:16px;min-height:44px;padding:8px;min-width:0;width:58%;max-width:245px}.setting input[type=range]{width:53%;min-height:44px}
+  .side-panel>.primary-button{min-width:0;height:54px;font-size:14px}.text-button{min-height:44px;font-size:13px}.mode-option{padding:13px;min-height:68px;gap:13px}.mode-option strong{font-size:14px}.mode-option small{font-size:12px;line-height:1.5}
+  .overlay{padding:max(16px,env(safe-area-inset-top)) max(20px,env(safe-area-inset-right)) max(16px,env(safe-area-inset-bottom)) max(20px,env(safe-area-inset-left));overflow-y:auto;align-items:flex-start}
+  .dialog{width:440px;max-width:100%;max-height:100%;margin:auto;padding:14px 0;overflow-y:auto;overscroll-behavior:contain}
+  .dialog h2,html[lang="zh-CN"] .dialog h2{font-size:clamp(28px,7vw,42px);margin:12px 0 20px}.dialog .primary-button{min-width:0;height:54px;font-size:14px}.secondary-button{min-height:48px;font-size:13px}.close-button{position:sticky;display:block;top:0;margin:0 0 0 auto;width:44px;height:44px;background:#172b30eb;z-index:1}
+  .controls-dialog dl{margin:14px 0}.controls-dialog dl>div{gap:16px;align-items:flex-start}.controls-dialog dd{font-size:12px;line-height:1.5;margin:0}.controls-dialog dt{flex-shrink:0;flex-wrap:wrap;max-width:110px}.controls-dialog .mobile-controls-help{display:block;font-size:15px;line-height:1.65;color:#f0d0b6}.controls-dialog .eyebrow{margin-top:-34px;max-width:calc(100% - 50px)}
+  #hud{padding:calc(10px + env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
+  .hud-top{height:44px;gap:8px}.race-name{gap:8px;min-width:0}.race-name .brand-mark{font-size:27px}.race-name>div>span{font-size:11px;letter-spacing:0}.race-name small{font-size:8px;letter-spacing:0;margin-top:4px}
+  .race-stats{gap:12px;flex-shrink:0}.race-stats>div>span{font-size:25px}.race-stats small{font-size:15px;margin-left:3px}.race-stats label{font-size:8px;letter-spacing:0;margin-top:3px}.race-stats .icon-button{width:44px;height:44px}
+  .progress-line{top:calc(63px + env(safe-area-inset-top));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right))}
+  .hud-bottom{inset:0;display:block;pointer-events:none}.hud-help{display:none}
+  .map-block{position:absolute;left:max(16px,env(safe-area-inset-left));bottom:calc(155px + env(safe-area-inset-bottom));width:116px}.map-block canvas{width:110px;height:90px;margin:0 0 5px -5px}.map-block>div{font-size:9px;letter-spacing:0;gap:5px}
+  .speedometer,body.driver-view .speedometer{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:calc(161px + env(safe-area-inset-bottom));width:150px}.speed-readout strong,body.driver-view .speed-readout strong{font-size:61px}.speed-readout>span,body.driver-view .speed-readout>span{font-size:22px;padding-right:10px;margin-right:8px}.speed-readout small,body.driver-view .speed-readout small{font-size:8px;margin-bottom:14px}.rpm-bars,body.driver-view .rpm-bars{height:9px;gap:3px}.rpm-bars i{height:5px}.rpm-bars i:nth-last-child(-n+5){height:8px}.nitro-label{font-size:9px;gap:7px}.telemetry{font-size:8px;letter-spacing:0;margin-top:9px;gap:6px}.telemetry #camera-label{display:none}
+  #countdown{top:25%;font-size:90px}#reward,body.driver-view #reward{top:22%;padding:0 70px;font-size:12px;letter-spacing:.04em}#drift-score,body.driver-view #drift-score{top:34%;bottom:auto;font-size:27px}
+  #touch-tools{display:grid;position:absolute;top:calc(76px + env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));gap:6px;pointer-events:auto}
+  #touch-tools button{height:44px;min-width:44px;padding:0 12px;background:#152b35bc;border:1px solid #d0dccc55;border-radius:10px;font-size:12px;font-weight:600;touch-action:none;user-select:none;-webkit-user-select:none}
+  .touch-zoom{display:flex;gap:5px}.touch-zoom button{font-size:22px!important;flex:1}#touch-tools button:disabled{opacity:.35}
+  #touch-controls{display:flex;position:absolute;bottom:calc(12px + env(safe-area-inset-bottom));left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));justify-content:space-between;gap:12px;pointer-events:none}
+  .touch-steering,.touch-pedals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;pointer-events:auto}
+  #touch-controls button{width:clamp(61px,16vw,78px);height:70px;border:1px solid #d6dec47a;background:#19333dcc;border-radius:15px;font-size:15px;font-weight:700;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;box-shadow:0 3px 15px #06151d30}
+  #touch-controls [data-key="KeyA"],#touch-controls [data-key="KeyD"]{font-size:25px}#touch-controls [data-key="KeyW"]{border-color:#e9aa80;background:#8b4c2bcc}
+  #touch-controls .touch-secondary{grid-column:1/-1;justify-self:center;height:44px;width:100px;border-radius:11px;font-size:12px}
+  #touch-controls button:active,#touch-controls button.is-held,#touch-tools button:active{background:#ed743d;color:#15282c;border-color:#ffba85;box-shadow:0 0 0 2px #ffb47740}
+}
+@media (max-width:370px){.race-name .brand-mark{display:none}.race-stats{gap:6px}.race-stats>div>span{font-size:23px}.route-art{width:38px}.route-meta{gap:6px}.route-number{display:none}#touch-controls button{width:60px;height:66px}.map-block{width:100px}.map-block canvas{width:95px;height:78px}.speedometer,body.driver-view .speedometer{width:139px}}
+@media (max-width:700px) and (max-height:700px){.hero-copy>p:not(.mobile-drive-tip){display:none}.hero-copy{padding-top:0}h1,html[lang="zh-CN"] h1{font-size:37px;margin:12px 0 8px}.vehicle-caption{margin:0}.vehicle-caption .micro{display:none}.vehicle-caption .text-button{min-height:40px}.menu-panel{top:calc(72px + env(safe-area-inset-top))}.drive-bottom{gap:8px}.route-card{height:72px}.hero-copy .mobile-drive-tip{font-size:11px;margin-top:6px}}
+@media (orientation:landscape) and (max-height:600px) and (pointer:coarse){
+  .topbar{height:calc(56px + env(safe-area-inset-top));border-bottom:1px solid var(--line);gap:12px}.topbar nav{position:static;display:flex;height:56px;padding:0;background:none;border:0;margin-left:auto;gap:5px}.nav-item{height:56px;min-width:68px;font-size:12px}.nav-item.active:after{top:auto;bottom:0}.brand>span:last-child{display:none}.top-actions{gap:0}
+  .menu-panel{inset:calc(66px + env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(22px,env(safe-area-inset-left))}
+  #drive-panel{grid-template-columns:minmax(0,1fr) minmax(245px,.85fr);grid-template-rows:minmax(0,1fr);column-gap:32px;overflow-y:auto}
+  .hero-copy{grid-area:1/1;align-self:start;padding-top:0}.hero-copy .eyebrow{font-size:10px}h1,html[lang="zh-CN"] h1{font-size:clamp(34px,7vh,44px);margin:10px 0}.hero-copy>p,.hero-copy .mobile-drive-tip{display:none}.vehicle-caption{grid-area:1/1;align-self:end;justify-self:start;text-align:left}.vehicle-caption h2{font-size:23px}.vehicle-caption .text-button{margin-left:0;min-height:40px}.vehicle-caption .micro{display:none}
+  .drive-bottom{grid-area:1/2;align-self:end;gap:12px}.route-card{height:80px}.drive-bottom>.primary-button{height:52px}.side-panel{max-width:650px;padding-top:0}.panel-title,html[lang="zh-CN"] .panel-title{font-size:27px;margin:8px 0 14px}.side-panel .eyebrow{display:none}
+  #hud{padding-top:calc(6px + env(safe-area-inset-top))}.progress-line{top:calc(55px + env(safe-area-inset-top))}.race-name small{display:none}.race-stats label{display:none}.race-stats{gap:18px}
+  #touch-controls{bottom:calc(10px + env(safe-area-inset-bottom));left:max(16px,env(safe-area-inset-left));right:max(16px,env(safe-area-inset-right))}#touch-controls button{width:70px;height:62px}#touch-controls .touch-secondary{height:44px;width:98px}
+  #touch-tools{top:calc(67px + env(safe-area-inset-top));grid-template-columns:repeat(2,44px);gap:5px}#touch-tools>button{padding:0;font-size:11px}.touch-zoom{grid-column:1/-1}
+  .map-block{top:calc(69px + env(safe-area-inset-top));bottom:auto;width:96px}.map-block canvas{width:96px;height:78px}.map-block>div{font-size:8px}
+  .speedometer,body.driver-view .speedometer{left:50%;right:auto;transform:translateX(-50%);bottom:calc(13px + env(safe-area-inset-bottom));width:144px}.speed-readout strong,body.driver-view .speed-readout strong{font-size:51px}.speed-readout>span,body.driver-view .speed-readout>span{font-size:21px}.speed-readout small,body.driver-view .speed-readout small{margin-bottom:11px}.telemetry{margin-top:6px}
+  #countdown{top:20%;font-size:76px}#reward,body.driver-view #reward{top:23%;font-size:11px}#drift-score,body.driver-view #drift-score{top:36%;font-size:25px}
+}
