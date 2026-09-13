@@ -1,0 +1,73 @@
+{
+  "generator": "Aholo Lux3D G1",
+  "taskId": 3429656,
+  "processor": "5.2.1 LTS",
+  "sourceTriangles": 33148,
+  "levels": [
+    {
+      "name": "CoastalRock_LOD0",
+      "triangles": 24000,
+      "vertices": 21141,
+      "blenderBounds": [
+        -6.0,
+        -3.619652032852173,
+        -0.005555301904678345,
+        5.998466968536377,
+        3.619652032852173,
+        9.395216941833496
+      ]
+    },
+    {
+      "name": "CoastalRock_LOD1",
+      "triangles": 7000,
+      "vertices": 8840,
+      "blenderBounds": [
+        -6.0,
+        -3.6435189247131348,
+        -0.005959882866591215,
+        6.0374674797058105,
+        3.6976213455200195,
+        9.415631294250488
+      ]
+    },
+    {
+      "name": "CoastalRock_LOD2",
+      "triangles": 1400,
+      "vertices": 3735,
+      "blenderBounds": [
+        -6.065145015716553,
+        -3.5973634719848633,
+        -0.03316880017518997,
+        6.033508777618408,
+        3.692491054534912,
+        9.429502487182617
+      ]
+    }
+  ],
+  "textures": [
+    {
+      "name": "Image_0",
+      "sourceSize": [
+        2048,
+        2048
+      ],
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "name": "Image_1",
+      "sourceSize": [
+        2048,
+        2048
+      ],
+      "size": [
+        1024,
+        1024
+      ]
+    }
+  ],
+  "glbBytes": 1507456,
+  "units": "meters, exported Y-up; base Y=0, width=12"
+}

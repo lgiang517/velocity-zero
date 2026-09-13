@@ -1,0 +1,71 @@
+{
+  "generator": "Aholo Lux3D",
+  "version": "G1",
+  "taskId": 3431485,
+  "sourceReferId": "641195602",
+  "status": 3,
+  "outputUrl": "https://qhsmodel.kujiale.com/lux3dPbrEmbedResult/a1fe0f35e450498e8b5e1d89e69799e3/textured.glb",
+  "requestedFaces": 120000,
+  "rawBytes": 10028080,
+  "sha256": "5f79f1606c7773e7947c5dc02e84c6d7f72ce7b2153c54fe1eaf844e672a5838",
+  "inputImage": "art/references/lux-gt-plated-reference.png",
+  "inputImageSha256": "15ead3d699132859bb38b8af243b32b38951b65b5accc471606c01d4e136e65b",
+  "qualityDecision": {
+    "acceptedForRefinement": true,
+    "reason": "Blender front, rear and side previews show one complete GT with four wheels; no duplicate car or independent ground slab",
+    "replacesTaskId": 3431294,
+    "rawMaterialNeeds": "Glass, tires and painted body share one opaque UV material and require semantic separation"
+  },
+  "vehicleFrame": {
+    "rawUp": "+Y",
+    "rawForward": "-X",
+    "toGameForwardPositiveZ": "rotate +90 degrees about Y; game X=raw Z, game Z=-raw X",
+    "sourceBounds": [
+      [
+        -2.4000000953674316,
+        -0.724725067615509,
+        -1.1261441707611084
+      ],
+      [
+        2.4000000953674316,
+        0.724725067615509,
+        1.1261441707611084
+      ]
+    ]
+  },
+  "wheelEstimates": {
+    "coordinateSpace": "raw glTF; metres",
+    "method": "longitudinal peaks of lower neutral-color side faces; lower tire silhouette circle fit; lateral centre estimated from sidewall span",
+    "rawFrontAxleX": -1.433,
+    "rawRearAxleX": 1.382,
+    "wheelbase": 2.815,
+    "centerY": -0.32,
+    "sideCentersZ": [
+      -0.9,
+      0.9
+    ],
+    "nominalRadius": 0.4,
+    "positiveZSideFrontFit": {
+      "x": -1.431905,
+      "y": -0.314865,
+      "radius": 0.403049,
+      "rms": 0.012861
+    },
+    "positiveZSideRearFit": {
+      "x": 1.379334,
+      "y": -0.321897,
+      "radius": 0.400152,
+      "rms": 0.022531
+    },
+    "caveat": "Generated tires are not perfectly circular. Negative-Z front lower profile is distorted; use final extracted wheel bounds to verify lateral centers rather than treating these estimates as exact axle pivots.",
+    "uniformScaleToLength4_65": 0.96875,
+    "scaledWheelbase": 2.72703125,
+    "scaledNominalRadius": 0.3875
+  },
+  "previews": [
+    "car-plated-source-preview-front.jpg",
+    "car-plated-source-preview-back.jpg",
+    "car-plated-source-preview-side.jpg"
+  ],
+  "faceSamples": "car-plated-source-face-samples.npz"
+}

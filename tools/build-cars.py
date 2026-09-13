@@ -14,6 +14,11 @@ def mat(name,color,metal=0,rough=.4,emit=0):
  if emit:p.inputs['Emission Color'].default_value=(*color,1);p.inputs['Emission Strength'].default_value=emit
  return m
 paint=mat('Paint',(.82,.15,.035),.55,.28);glass=mat('Glass',(.025,.045,.055),.05,.12)
+window_glass=mat('Window glass',(.36,.44,.48),0,.09)
+window_glass.diffuse_color=(.36,.44,.48,.30)
+window_glass.node_tree.nodes.get('Principled BSDF').inputs['Alpha'].default_value=.30
+window_glass.node_tree.nodes.get('Principled BSDF').inputs['IOR'].default_value=1.5
+window_glass.use_backface_culling=False
 dark=mat('Graphite',(.014,.018,.022),.45,.35);rubber=mat('Rubber',(.012,.014,.016),0,.8)
 metal=mat('Alloy',(.23,.27,.3),.85,.26);red=mat('Tail',(.8,.012,.004),.1,.3,2)
 white=mat('Headlight',(.75,.9,1),.1,.2,3)
@@ -40,9 +45,9 @@ def cube(name,pos,scale,material,bevel=.03,collect=True):
  n=o.modifiers.new('Corner normals','WEIGHTED_NORMAL');bpy.ops.object.modifier_apply(modifier=n.name)
  if collect:static.append(o)
  return o
-def tube(name,pts,r,material):
+def tube(name,pts,r,material,resolution=2):
  bpy.ops.object.select_all(action='DESELECT')
- cu=bpy.data.curves.new(name,'CURVE');cu.dimensions='3D';cu.bevel_depth=r;cu.bevel_resolution=2
+ cu=bpy.data.curves.new(name,'CURVE');cu.dimensions='3D';cu.bevel_depth=r;cu.bevel_resolution=resolution
  sp=cu.splines.new('POLY');sp.points.add(len(pts)-1)
  for p,co in zip(sp.points,pts):p.co=(*v(co),1)
  ob=bpy.data.objects.new(name,cu);bpy.context.collection.objects.link(ob);ob.data.materials.append(material)
@@ -64,31 +69,93 @@ for z in [-1.34,1.38]:
  cutter=bpy.context.object;bpy.context.view_layer.objects.active=body
  mod=body.modifiers.new('Real wheel well','BOOLEAN');mod.operation='DIFFERENCE';mod.object=cutter;bpy.ops.object.modifier_apply(modifier=mod.name);bpy.data.objects.remove(cutter,do_unlink=True)
 b=body.modifiers.new('Arch edge','BEVEL');b.width=.012;b.segments=2;bpy.ops.object.modifier_apply(modifier=b.name)
-# Continuous coupe canopy with surface-conforming glass; no detached roof/pillars.
-profiles=[(-1.65,.79,.85,0),(-1.35,.8,.85,.16),(-.9,.79,.85,.37),(-.55,.78,.85,.43),(-.1,.78,.85,.43),(.22,.79,.85,.36),(.55,.81,.83,.20),(.93,.82,.8,0)]
+# A real cockpit well: no Paint slab through the seats, armrest or transparent windows.
+from mathutils.bvhtree import BVHTree
+bpy.context.view_layer.update()
+closed_cabin_skin=BVHTree.FromObject(body,bpy.context.evaluated_depsgraph_get())
+cabin_cutter=cube('Temporary cockpit volume',(0,1.25,-.20),(1.40,2.01,1.96),dark,.035,False)
+bpy.context.view_layer.objects.active=body
+well=body.modifiers.new('Open passenger compartment','BOOLEAN');well.operation='DIFFERENCE';well.solver='EXACT';well.object=cabin_cutter
+bpy.ops.object.modifier_apply(modifier=well.name);bpy.data.objects.remove(cabin_cutter,do_unlink=True)
+cube('Closed passenger lower pan',(0,.239,-.20),(1.36,.012,1.90),dark,.008)
+# Window boundaries define an open, continuous coupe greenhouse, not glass over a painted cap.
+profiles=[(-1.65,.79,.85,0),(-1.35,.8,.85,.16),(-.9,.79,.85,.37),(-.55,.78,.85,.46),(-.1,.78,.85,.46),(.22,.79,.85,.36),(.55,.81,.83,.20),(.93,.82,.8,0)]
 def profile(z):
+ # C1 Hermite interpolation removes the former longitudinal roof facets.
  for i in range(len(profiles)-1):
   a,b=profiles[i:i+2]
   if a[0]<=z<=b[0]:
-   t=(z-a[0])/(b[0]-a[0]);return [a[j]+(b[j]-a[j])*t for j in range(1,4)]
+   length=b[0]-a[0];t=(z-a[0])/length;previous=profiles[max(0,i-1)];following=profiles[min(len(profiles)-1,i+2)]
+   result=[]
+   for j in range(1,4):
+    m0=(b[j]-previous[j])/(b[0]-previous[0]);m1=(following[j]-a[j])/(following[0]-a[0])
+    result.append((2*t**3-3*t*t+1)*a[j]+(t**3-2*t*t+t)*length*m0+(-2*t**3+3*t*t)*b[j]+(t**3-t*t)*length*m1)
+   return result
  return profiles[0][1:] if z<profiles[0][0] else profiles[-1][1:]
+
 def canopy(z,u,offset=0):
  w,base,h=profile(z);return (w*u,base+h*max(0,1-u*u)**.42+offset,z)
 def patch(name,z0,z1,u0,u1,material,offset=0,nz=32,nu=20):
  vs=[canopy(z0+(z1-z0)*i/nz,u0+(u1-u0)*j/nu,offset) for i in range(nz+1) for j in range(nu+1)]
  fs=[(i*(nu+1)+j,i*(nu+1)+j+1,(i+1)*(nu+1)+j+1,(i+1)*(nu+1)+j) for i in range(nz) for j in range(nu)]
  return mesh(name,vs,fs,material)
-patch('Integrated roof and pillars',-1.65,.93,-1,1,paint)
-patch('Raked windscreen',.26,.84,-.86,.86,glass,.009)
-patch('Fastback rear glass',-1.5,-.76,-.85,.85,glass,.009)
+def greenhouse_quad(name,corners,material,rows=20,columns=12,offset=0,collect=True):
+ # corners follow u/z parameter space: exact shared window/pillar boundaries.
+ vs=[]
+ for i in range(rows+1):
+  t=i/rows
+  for j in range(columns+1):
+   f=j/columns
+   u=(1-t)*((1-f)*corners[0][0]+f*corners[1][0])+t*((1-f)*corners[3][0]+f*corners[2][0])
+   z=(1-t)*((1-f)*corners[0][1]+f*corners[1][1])+t*((1-f)*corners[3][1]+f*corners[2][1])
+   vs.append(canopy(z,u,offset))
+ fs=[(i*(columns+1)+j,i*(columns+1)+j+1,(i+1)*(columns+1)+j+1,(i+1)*(columns+1)+j) for i in range(rows) for j in range(columns)]
+ ob=mesh(name,vs,fs,material,collect)
+ # The open upper surfaces face outward; runtime may use FrontSide culling.
+ bm=bmesh.new();bm.from_mesh(ob.data);bm.normal_update()
+ wrong=[face for face in bm.faces if face.normal.z<0]
+ if wrong:bmesh.ops.reverse_faces(bm,faces=wrong)
+ bm.to_mesh(ob.data);bm.free()
+ if material==paint:
+  bpy.context.view_layer.objects.active=ob
+  solid=ob.modifiers.new('Thin formed window frame','SOLIDIFY');solid.thickness=.014;solid.offset=-1
+  bpy.ops.object.modifier_apply(modifier=solid.name)
+ return ob
+
+windows=[('Window windscreen',[(-.68,.09),(.68,.09),(.90,.79),(-.90,.79)]),('Window rear',[(-.88,-1.50),(.88,-1.50),(.65,-.79),(-.65,-.79)])]
+for side in [-1,1]:windows.append(('Window side '+str(side),[(side*.75,-.75),(side*.75,.035),(side*.985,.73),(side*.985,-1.36)]))
+for name,corners in windows:
+ greenhouse_quad(name,corners,window_glass,24,14,.003,False)
+ pts=[]
+ for k in range(4):
+  p0,p1=corners[k],corners[(k+1)%4]
+  for i in range(16):
+   t=i/16;pts.append(canopy(p0[1]*(1-t)+p1[1]*t,p0[0]*(1-t)+p1[0]*t,.004))
+ pts.append(pts[0]);tube('Flush window gasket',pts,.006,dark,1)
+greenhouse_quad('Continuous formed roof',[(-.71,-.78),(.71,-.78),(.71,.08),(-.71,.08)],paint,24,24)
+greenhouse_quad('Front cowl band',[(-1,.79),(1,.79),(1,.93),(-1,.93)],paint,5,20)
+greenhouse_quad('Rear deck window band',[(-1,-1.65),(1,-1.65),(1,-1.50),(-1,-1.50)],paint,5,20)
 for side in [-1,1]:
- # side windows taper at both ends
- vs=[];nz=26;nu=8
- for i in range(nz+1):
-  t=i/nz;z=-1.32+2.07*t
-  upper=.73+.20*abs(2*t-1)**2
-  for j in range(nu+1):vs.append(canopy(z,side*(upper+(.985-upper)*j/nu),.007))
- mesh('Side glass',vs,[(i*(nu+1)+j,i*(nu+1)+j+1,(i+1)*(nu+1)+j+1,(i+1)*(nu+1)+j) for i in range(nz) for j in range(nu)],glass)
+ def frame(name,points,rows=16,columns=4):return greenhouse_quad(name,[(side*u,z) for u,z in points],paint,rows,columns)
+ frame('Narrow A pillar',[(.68,.09),(.90,.79),(.985,.73),(.75,.035)])
+ frame('Tapered C pillar',[(.65,-.79),(.88,-1.50),(.985,-1.36),(.75,-.75)])
+ frame('Roof side rail',[(.71,-.78),(.71,.08),(.75,.035),(.75,-.75)])
+ frame('Side belt window frame',[(.985,-1.36),(.985,.73),(1,.73),(1,-1.36)])
+ frame('Front corner return',[(.90,.79),(.985,.73),(1,.73),(1,.93)],8,4)
+ frame('Rear corner return',[(.88,-1.50),(.985,-1.36),(1,-1.36),(1,-1.65)],8,4)
+ # Join the window sill to the actual body shoulder instead of leaving a dark floating gap.
+ belt=[];segments=40
+ for i in range(segments+1):
+  z=-1.50+2.29*i/segments;upper=canopy(z,side)
+  origin=Vector(v((upper[0]+side*.018,2,z)));hit,co,normal,_=body.ray_cast(origin,Vector(v((0,-1,0))))
+  if not hit:raise RuntimeError('Body missing under window sill')
+  co+=normal*.0015;lower=(co.x,co.z,-co.y)
+  belt.extend([upper,lower])
+ landing=mesh('Continuous shoulder to window sill',belt,[(i*2,i*2+1,(i+1)*2+1,(i+1)*2) for i in range(segments)],paint)
+ bm=bmesh.new();bm.from_mesh(landing.data);bm.normal_update()
+ wrong=[face for face in bm.faces if face.normal.x*side<0]
+ if wrong:bmesh.ops.reverse_faces(bm,faces=wrong)
+ bm.to_mesh(landing.data);bm.free()
  cube('Mirror stalk',(side*.85,.91,.52),(.18,.035,.045),dark,.01)
  cube('Integrated mirror',(side*1.015,.94,.55),(.23,.095,.2),paint,.04)
  cube('Mirror lens',(side*1.016,.947,.449),(.17,.055,.008),glass,.02)
@@ -96,7 +163,7 @@ for side in [-1,1]:
  cube('Sill',(side*.92,.285,0),(.12,.085,1.85),dark,.025)
  # arch liner half-ring follows wheel arch, recessed inside body
  for z in [-1.34,1.38]:
-  pts=[(side*.967,.385+.413*math.sin(a),z+.413*math.cos(a)) for a in [math.pi*i/32 for i in range(33)]]
+  pts=[(side*(.934 if z>0 else .978),.385+.413*math.sin(a),z+.413*math.cos(a)) for a in [math.pi*i/32 for i in range(33)]]
   tube('Arch inner lip',pts,.012,dark)
 # Fine panel gaps projected onto the real body surface, not floating trim.
 def surface_seam(name,points,axis,side=1):
@@ -134,7 +201,7 @@ for side in [-1,1]:
 # curved inset tail, lightbar and integrated ducktail
 for name,y,r,ma in [('Inset tail surround',.68,.052,dark),('Continuous red LED',.735,.013,red),('Integrated ducktail',.804,.017,paint)]:
  tube(name,[(x,y,(-2.335 if ma==red else -2.255)+.13*(abs(x)/.86)**3) for x in [ -.86+i*1.72/40 for i in range(41)]],r,ma)
-cube('Rear diffuser',(0,.35,-2.17),(1.68,.19,.23),dark,.07)
+diffuser=cube('Rear diffuser',(0,.35,-2.17),(1.68,.19,.23),dark,.07)
 cube('License recess',(0,.525,-2.287),(.48,.115,.025),dark,.014)
 for side in [-1,1]:
  tube('Front LED',[(side*(.48+i*.36/18),.687+.025*i/18,2.244-.04*i/18) for i in range(19)],.017,white)
@@ -148,6 +215,201 @@ cube('Central front grille',(0,.485,2.255),(.86,.17,.07),dark,.04)
 cube('Front splitter',(0,.325,2.13),(1.79,.043,.34),dark,.025)
 # Original VZ branding stays within the existing body envelope. Project every
 # badge vertex onto the actual finished surface so the applique never floats.
+# Manufactured lamp assemblies and surface-fitted hardware reuse the existing batches.
+# Cache the uncut skin for conforming details before opening shallow pockets.
+from mathutils.bvhtree import BVHTree
+bpy.context.view_layer.update()
+skin=BVHTree.FromObject(body,bpy.context.evaluated_depsgraph_get())
+# Preserve the smooth manufactured shell before topology-changing Boolean pockets.
+from mathutils.geometry import barycentric_transform
+body.data.calc_loop_triangles()
+skin_vertices=[vertex.co.copy() for vertex in body.data.vertices]
+skin_triangles=[tuple(triangle.vertices) for triangle in body.data.loop_triangles]
+skin_corner_normals=[tuple(body.data.corner_normals[index].vector.copy() for index in triangle.loops) for triangle in body.data.loop_triangles]
+skin_normals_bvh=BVHTree.FromPolygons(skin_vertices,skin_triangles,all_triangles=True)
+
+def shell_normal(point):
+ nearest,_,triangle_index,distance=skin_normals_bvh.find_nearest(point)
+ if triangle_index is None:return None,100
+ a,b,c=[skin_vertices[index] for index in skin_triangles[triangle_index]]
+ na,nb,nc=skin_corner_normals[triangle_index]
+ normal=barycentric_transform(nearest,a,b,c,na,nb,nc)
+ return normal.normalized(),distance
+
+def restore_shell_normals():
+ # New cavity walls must never inherit exterior normals, even at their shared boundary.
+ # Qualify whole faces by distance to the uncut shell, then interpolate each loop separately.
+ source=[shell_normal(vertex.co) for vertex in body.data.vertices]
+ normals=[entry.vector.copy() for entry in body.data.corner_normals]
+ restored=0
+ for polygon in body.data.polygons:
+  outer=all(source[index][0] is not None and source[index][1]<.00002 for index in polygon.vertices)
+  if not outer:continue
+  average=sum((source[index][0] for index in polygon.vertices),Vector()).normalized()
+  if polygon.normal.dot(average)<.5:continue
+  for loop_index in polygon.loop_indices:
+   normals[loop_index]=source[body.data.loops[loop_index].vertex_index][0];restored+=1
+ body.data.normals_split_custom_set(normals)
+ print('RESTORED_OUTER_SHELL_LOOP_NORMALS',restored)
+
+detail_start=len(static)
+def skin_point(point,axis='side',side=1,offset=0):
+ x,y,z=point
+ origin=Vector(v((side*2,y,z) if axis=='side' else (x,2,z)))
+ direction=Vector(v((-side,0,0) if axis=='side' else (0,-1,0)))
+ co,normal,_,_=skin.ray_cast(origin,direction)
+ if co is None:raise RuntimeError('Hardware misses body skin: '+str(point))
+ co+=normal*offset
+ return (co.x,co.z,-co.y)
+
+def cut_pocket(target,cutter,label):
+ bpy.context.view_layer.objects.active=target
+ mod=target.modifiers.new(label,'BOOLEAN');mod.operation='DIFFERENCE';mod.solver='EXACT';mod.object=cutter
+ bpy.ops.object.modifier_apply(modifier=mod.name)
+
+def axis_ring(name,center,profile,material,segments=24):
+ # Open turned section along game Z, with outward/inward wall normals from its closed profile.
+ x,y,z=center;vs=[]
+ for dz,r in profile:
+  for i in range(segments):
+   a=math.tau*i/segments;vs.append((x+r*math.cos(a),y+r*math.sin(a),z+dz))
+ fs=[(row*segments+i,row*segments+(i+1)%segments,((row+1)%len(profile))*segments+(i+1)%segments,((row+1)%len(profile))*segments+i) for row in range(len(profile)) for i in range(segments)]
+ return mesh(name,vs,fs,material)
+
+def optical_disc(name,center,radius,depth,material,segments=20):
+ bpy.ops.mesh.primitive_cylinder_add(vertices=segments,radius=radius,depth=depth,location=v(center),rotation=(math.pi/2,0,0))
+ ob=bpy.context.object;ob.name=name;ob.data.materials.append(material)
+ for polygon in ob.data.polygons:polygon.use_smooth=len(polygon.vertices)==4
+ static.append(ob);return ob
+
+# Open the original hidden intakes through the nose while retaining plate and splitter positions.
+for x,width in [(0,.89),(-.66,.385),(.66,.385)]:
+ cutter=cube('Temporary inlet pocket',(x,.485 if x==0 else .47,2.260),(width,.184 if x==0 else .168,.23),dark,.027,False)
+ cut_pocket(body,cutter,'Visible recessed front inlet');bpy.data.objects.remove(cutter,do_unlink=True)
+for ob in list(static):
+ if ob.name=='Front intake' or ob.name.startswith('Front intake.') or ob.name=='Headlight housing' or ob.name.startswith('Headlight housing.'):
+  static.remove(ob);bpy.data.objects.remove(ob,do_unlink=True)
+for side in [-1,1]:
+ # Open tapered four-wall throat, with a separate dark backing well behind the vanes.
+ vs=[]
+ for depth,halfwidth,halfheight in [(2.217,.180,.073),(2.153,.140,.048)]:
+  for cx,cy,angle0 in [(halfwidth-.020,halfheight-.020,0),(-halfwidth+.020,halfheight-.020,90),(-halfwidth+.020,-halfheight+.020,180),(halfwidth-.020,-halfheight+.020,270)]:
+   for k in range(5):
+    a=math.radians(angle0+90*k/4);vs.append((side*.66+cx+.020*math.cos(a),.47+cy+.020*math.sin(a),depth))
+ n=20;fs=[(i,(i+1)%n,(i+1)%n+n,i+n) for i in range(n)]+[tuple(range(n,2*n))]
+ throat=mesh('Recessed side intake throat',vs,fs,dark)
+ bm=bmesh.new();bm.from_mesh(throat.data);bmesh.ops.reverse_faces(bm,faces=bm.faces);bm.to_mesh(throat.data);bm.free()
+ # Open cup winding faces incoming view rather than being treated as an outward solid.
+ for polygon in throat.data.polygons:polygon.use_smooth=False
+# Center vanes sit ahead of their dark backing and behind the original plate.
+for ob in static:
+ if ob.name.startswith('Front intake vane'):ob.location.y-=.010
+ if ob.name.startswith('Side inlet vane'):ob.location.y+=.037
+
+# Existing DRL signature remains above two recessed projectors, not an extra luminous bar.
+for side in [-1,1]:
+ cutter=cube('Temporary lamp pocket',(side*.66,.671,2.225),(.438,.096,.24),dark,.018,False)
+ cut_pocket(body,cutter,'Recessed optical chamber');bpy.data.objects.remove(cutter,do_unlink=True)
+ # Recessed graphite carrier is visible through the nose opening; the old outer housing stays.
+ cube('Headlamp inner carrier',(side*.66,.667,2.192),(.409,.076,.028),dark,.017)
+ for x in [.553,.714]:
+  z=2.238-(x-.48)*.111
+  axis_ring('Projector machined bezel',(side*x,.656,z),[(-.026,.0275),(-.005,.0305),(.001,.0275),(.001,.023),(-.020,.020)],metal,20)
+  optical_disc('Projector dark optic',(side*x,.656,z-.003),.023,.004,glass)
+  optical_disc('Projector luminous core',(side*x,.656,z+.0002),.0165,.003,white)
+ # One restrained metallic separator accent emphasizes the dark cavity depth.
+ cube('Headlamp separator',(side*.636,.656,2.205),(.007,.046,.025),metal,.002)
+
+# Preserve the uninterrupted upper light signature and add distinct lower optical chambers.
+for side in [-1,1]:
+ for i in range(6):
+  x=side*(.354+i*.078);z=-2.315+.13*(abs(x)/.86)**3
+  core=cube('Segmented tail optic',(x,.679,z),(.057,.031,.010),red,.006)
+  core.rotation_euler.z=side*.13
+  # Top/bottom thin reflectors stay within the original surround silhouette.
+  for y in [.656,.702]:
+   cube('Tail chamber reflector',(x,y,z+.005),(.057,.0035,.006),metal,0)
+
+# Remove the old flat handle and black exhaust end-cap, now replaced by actual recesses.
+for ob in list(static):
+ if ob.name.startswith('Flush handle') or ob.name.startswith('Exhaust depth'):
+  static.remove(ob);bpy.data.objects.remove(ob,do_unlink=True)
+for side in [-1,1]:
+ p=skin_point((0,.748,-.49),'side',side)
+ cutter=cube('Temporary handle pocket',p,(.060,.053,.222),dark,.012,False)
+ cut_pocket(body,cutter,'Door handle finger recess');bpy.data.objects.remove(cutter,do_unlink=True)
+ cube('Handle inset well',(p[0]-side*.020,p[1],p[2]),(.013,.049,.209),dark,.010)
+ cube('Flush painted handle',(p[0]-side*.003,p[1]+.006,p[2]),(.011,.020,.169),paint,.006)
+ cube('Handle lower metal edge',(p[0]+side*.001,p[1]-.005,p[2]),(.003,.003,.140),metal,.001)
+ # Real exhaust bore passes through the existing diffuser and shell. The rolled outer tip stays.
+ bpy.ops.mesh.primitive_cylinder_add(vertices=24,radius=.055,depth=.245,location=v((side*.64,.355,-2.215)),rotation=(math.pi/2,0,0))
+ cutter=bpy.context.object
+ cut_pocket(body,cutter,'Exhaust bore');cut_pocket(diffuser,cutter,'Diffuser exhaust opening');bpy.data.objects.remove(cutter,do_unlink=True)
+ axis_ring('Exhaust inner turned sleeve',(side*.64,.355,-2.305),[(0,.055),(.100,.051),(.100,.047),(0,.050)],metal)
+ axis_ring('Exhaust soot cavity',(side*.64,.355,-2.305),[(.032,.049),(.142,.045),(.142,.043),(.032,.047)],dark)
+ optical_disc('Exhaust recessed darkness',(side*.64,.355,-2.159),.044,.005,dark,24)
+
+# Rear deck lid and right fuel flap conform to the finished body; no floating rectangles.
+deck=[]
+for i in range(18):deck.append((-.59+.03*i/17,0,-1.68-.46*i/17))
+for i in range(24):deck.append((-.56+1.12*i/23,0,-2.14))
+for i in range(18):deck.append((.56+.03*i/17,0,-2.14+.46*i/17))
+surface_seam('Rear deck shutline',deck,'top')
+fuel=[(0,.835+.050*math.sin(math.tau*i/32),-1.01+.062*math.cos(math.tau*i/32)) for i in range(33)]
+surface_seam('Fuel flap inset outline',fuel,'side',1)
+# Individual annotations remain in the editable scene as custom properties after batch merging.
+for ob in static[detail_start:]:ob['detail_generation']='lamp chambers, inset hardware, hollow exhaust v2'
+# Integrate rear lamps, grilles and exhaust into the actual curved tail surface.
+def rear_anchor(x,y,offset=0):
+ co,normal,_,_=skin.ray_cast(Vector(v((x,y,-3))),Vector(v((0,0,1))))
+ if co is None:raise RuntimeError('Rear trim misses shell: '+str((x,y)))
+ co+=normal*offset
+ return (co.x,co.z,-co.y),normal
+
+def rear_panel(name,y0,y1,width,rows,columns):
+ vs=[]
+ for i in range(rows+1):
+  t=i/rows;y=y0+(y1-y0)*t;halfwidth=width-.022*abs(t*2-1)**4
+  for j in range(columns+1):vs.append(rear_anchor((j/columns*2-1)*halfwidth,y,.0025)[0])
+ fs=[(i*(columns+1)+j,i*(columns+1)+j+1,(i+1)*(columns+1)+j+1,(i+1)*(columns+1)+j) for i in range(rows) for j in range(columns)]
+ ob=mesh(name,vs,fs,dark)
+ bm=bmesh.new();bm.from_mesh(ob.data);bm.normal_update();wrong=[face for face in bm.faces if face.normal.y<0]
+ if wrong:bmesh.ops.reverse_faces(bm,faces=wrong)
+ bm.to_mesh(ob.data);bm.free();return ob
+rear_panel('Continuous curved rear lamp and vent panel',.546,.720,.855,10,52)
+for ob in list(static):
+ if ob.name.startswith('Recessed rear vent') or ob.name.startswith('Rear extraction grille'):
+  static.remove(ob);bpy.data.objects.remove(ob,do_unlink=True)
+for side in [-1,1]:
+ for i in range(12):
+  x=side*(.335+i*.45/11)
+  points=[rear_anchor(px,py,.0045)[0] for px,py in [(x-.0035,.564),(x+.0035,.564),(x+.0035,.624),(x-.0035,.624)]]
+  vane=mesh('Flush tail extraction vane',points,[(0,1,2,3)],grille)
+  bm=bmesh.new();bm.from_mesh(vane.data);bm.normal_update()
+  bm.faces.ensure_lookup_table()
+  if bm.faces[0].normal.y<0:bmesh.ops.reverse_faces(bm,faces=bm.faces)
+  bm.to_mesh(vane.data);bm.free()
+for ob in static:
+ if ob.name.startswith('Segmented tail optic') or ob.name.startswith('Tail chamber reflector'):
+  x,y=ob.location.x,ob.location.z;p,normal=rear_anchor(x,y,.007)
+  ob.location=v(p);ob.rotation_euler.z=math.atan2(-normal.x,normal.y)
+ if ob.name.startswith('Exhaust inner turned sleeve'):
+  ob.data.materials.clear();ob.data.materials.append(dark)
+ if ob.name.startswith('Full round exhaust'):
+  # Slimmer rolled outer metal, with the inner bore kept dark.
+  for vertex in ob.data.vertices:
+   vertex.co.x*=.92;vertex.co.y*=.92;vertex.co.z*=.70
+  x,y=ob.location.x,ob.location.z;p,_=rear_anchor(x,y,.0015);ob.location=v(p)
+lower_tail=rear_panel('Curved diffuser surround',.305,.452,.79,10,48)
+bpy.context.view_layer.objects.active=lower_tail
+solid=lower_tail.modifiers.new('Diffuser skin thickness','SOLIDIFY');solid.thickness=.008;solid.offset=-1
+bpy.ops.object.modifier_apply(modifier=solid.name)
+for side in [-1,1]:
+ bpy.ops.mesh.primitive_cylinder_add(vertices=32,radius=.059,depth=.4,location=v((side*.64,.355,-2.22)),rotation=(math.pi/2,0,0))
+ cutter=bpy.context.object;cut_pocket(lower_tail,cutter,'Recessed exhaust aperture');bpy.data.objects.remove(cutter,do_unlink=True)
+
+print('CAR_DETAIL_LAYER_ADDED')
+
 branding_start=len(static)
 # The nose skin closes ahead of the old cosmetic grille. A shallow license
 # pocket exposes the front plate without pushing it beyond the original nose.
@@ -254,7 +516,7 @@ for side in [-1,1]:
   # Recessed circumferential tread grooves remain inside the original tire radius.
   for off in [-.045,.045]:ring('Tread groove',[(off-.002,.375),(off+.002,.375),(off+.002,.372),(off-.002,.372)],dark,32)
   # Calipers stay fixed to the body; they must not spin with the wheel mesh.
-  cube('Fixed brake caliper',(center[0]+side*.108,center[1]+.03,center[2]-.17),(.033,.19,.105),caliper,.022)
+  fixed_caliper=cube('Fixed brake caliper',(center[0]+side*.108,center[1]+.03,center[2]-.17),(.033,.19,.105),caliper,.022)
 
   cyl('Brake disc',.225,.02,metal,side*.115)
   cyl('Hub',.07,.025,metal,side*.157)
@@ -281,6 +543,44 @@ for side in [-1,1]:
   bpy.context.view_layer.objects.active=parts[0];bpy.ops.object.transform_apply(location=False,rotation=True,scale=True);bpy.ops.object.join();wheel=bpy.context.object
   bpy.context.scene.cursor.location=v(center);bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
   wheel.name='Wheel_'+label+('L' if side>0 else 'R')
+  visual_inset=.16 if label=='F' else .12
+  for vertex in wheel.data.vertices:vertex.co.x-=side*visual_inset
+  fixed_caliper.location.x-=side*visual_inset
+# Classify individual triangles: a clipped n-gon can span both rim and cavity.
+bpy.context.view_layer.objects.active=body
+tri=body.modifiers.new('Unambiguous cavity triangles','TRIANGULATE');tri.quad_method='BEAUTY';tri.ngon_method='BEAUTY'
+bpy.ops.object.modifier_apply(modifier=tri.name)
+# Restore exterior shading, then split only new front cavity faces into the existing dark batch.
+body.data.set_sharp_from_angle(angle=.65)
+restore_shell_normals()
+body.data.materials.clear();body.data.materials.append(paint);body.data.materials.append(dark)
+source_distance=[shell_normal(vertex.co)[1] for vertex in body.data.vertices]
+lining_faces=[]
+for polygon in body.data.polygons:
+ # Game forward Z is negative Blender Y. Original outer skin remains Paint, including its rim.
+ front=all(-body.data.vertices[index].co.y>2.099 for index in polygon.vertices)
+ inset=any(source_distance[index]>.00002 for index in polygon.vertices)
+ center_normal,center_distance=shell_normal(polygon.center)
+ follows_skin=center_normal is not None and polygon.normal.dot(center_normal)>.60 and center_distance<.006
+ center=polygon.center
+ in_cabin=abs(center.x)<.706 and -1.181<-center.y<.781 and .244<center.z<.96
+ cabin_distance=closed_cabin_skin.find_nearest(center)[3] if in_cabin else 0
+ cabin_lining=in_cabin and cabin_distance is not None and cabin_distance>.003
+ polygon.material_index=1 if (front and inset and not follows_skin) or cabin_lining else 0
+ if polygon.material_index==1:lining_faces.append(polygon.index)
+bpy.ops.object.select_all(action='DESELECT');body.select_set(True);bpy.context.view_layer.objects.active=body
+bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.select_all(action='DESELECT');bpy.ops.object.mode_set(mode='OBJECT')
+bpy.context.tool_settings.mesh_select_mode=(False,False,True)
+for polygon in body.data.polygons:polygon.select=polygon.index in lining_faces
+before_objects=set(bpy.context.scene.objects)
+bpy.ops.object.mode_set(mode='EDIT');bpy.ops.mesh.separate(type='SELECTED');bpy.ops.object.mode_set(mode='OBJECT')
+for liner in set(bpy.context.scene.objects)-before_objects:
+ liner.name='Front cavity graphite lining'
+ for polygon in liner.data.polygons:polygon.material_index=0
+ liner.data.materials.clear();liner.data.materials.append(dark);static.append(liner)
+for polygon in body.data.polygons:polygon.material_index=0
+body.data.materials.clear();body.data.materials.append(paint)
+print('FRONT_CAVITY_GRAPHITE_FACES',len(lining_faces))
 # Merge static meshes per material, limiting draw calls.
 groups=[[o for o in static if o.data.materials[0]==ma] for ma in [paint,glass,dark,metal,red,white,grille,caliper,plate]]
 for ma,objs in zip([paint,glass,dark,metal,red,white,grille,caliper,plate],groups):

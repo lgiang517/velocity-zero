@@ -11,24 +11,35 @@ export function createCockpit({simple=false}={}) {
  if(simple)return {root,steeringWheel,update(){},dispose(){}};
  // A short-range cabin bounce opens front-facing leather without lighting the road.
  const cabinBounce=new THREE.PointLight('#e5e5dd',.32,1.8,2);cabinBounce.position.set(.20,1.13,-.34);root.add(cabinBounce);
- const geometries=new Set(),materials=new Set(),textures=new Set(),batches=new Map();
+ const geometries=new Set(),materials=new Set(),textures=new Set(),batches=new Map(),stitchBatches=new Map();
  const material=(options)=>{const m=new THREE.MeshStandardMaterial(options);materials.add(m);return m;};
  const basic=(options)=>{const m=new THREE.MeshBasicMaterial(options);materials.add(m);return m;};
  const grainCanvas=document.createElement('canvas');grainCanvas.width=grainCanvas.height=128;
  const grainCtx=grainCanvas.getContext('2d'),grain=grainCtx.createImageData(128,128);let seed=913;
- for(let i=0;i<grain.data.length;i+=4){seed=(seed*1664525+1013904223)>>>0;const n=110+(seed>>>26);grain.data[i]=grain.data[i+1]=grain.data[i+2]=n;grain.data[i+3]=255;}
+ for(let i=0;i<grain.data.length;i+=4){seed=(seed*1664525+1013904223)>>>0;const n=110+(seed>>>26);grain.data[i]=grain.data[i+2]=n;grain.data[i+1]=206+(seed>>>28);grain.data[i+3]=255;}
  grainCtx.putImageData(grain,0,0);
  const leatherGrain=new THREE.CanvasTexture(grainCanvas);leatherGrain.wrapS=leatherGrain.wrapT=THREE.RepeatWrapping;leatherGrain.repeat.set(18,10);textures.add(leatherGrain);
- const leather=material({color:'#77766f',roughness:.92,metalness:.02,bumpMap:leatherGrain,bumpScale:.00045,envMapIntensity:.32,emissive:'#121a1c',emissiveIntensity:.24});
- const rimLeather=material({color:'#414a4c',roughness:.82,bumpMap:leatherGrain,bumpScale:.00035,envMapIntensity:.38,emissive:'#394346',emissiveIntensity:.20});
- const lower=material({color:'#3b4545',roughness:.88,envMapIntensity:.3,emissive:'#141c21',emissiveIntensity:.20});
- const insert=material({color:'#252d2e',roughness:.66,metalness:.08,envMapIntensity:.40,emissive:'#273235',emissiveIntensity:.15});
- const satin=material({color:'#a9afac',roughness:.39,metalness:.64,envMapIntensity:.68});
- const graphite=material({color:'#697577',roughness:.43,metalness:.44,envMapIntensity:.55});
+ const leather=material({color:'#66645e',roughness:.98,roughnessMap:leatherGrain,metalness:.02,bumpMap:leatherGrain,bumpScale:.00055,envMapIntensity:.32,emissive:'#121a1c',emissiveIntensity:.24});
+ const rimLeather=material({color:'#303737',roughness:.92,roughnessMap:leatherGrain,bumpMap:leatherGrain,bumpScale:.00045,envMapIntensity:.38,emissive:'#293234',emissiveIntensity:.12});
+ leather.name='Fine grain warm leather';rimLeather.name='Grained steering leather';
+ const lower=material({color:'#343c3b',roughness:.96,roughnessMap:leatherGrain,envMapIntensity:.3,emissive:'#141c21',emissiveIntensity:.20});
+ const insert=material({color:'#2c3030',roughness:.77,metalness:.08,envMapIntensity:.40,emissive:'#273235',emissiveIntensity:.15});
+ // The grain texture also carries subtle roughness in its green channel; no extra texture allocation.
+ // One tiny shared linear roughness map gives satin controls a restrained brushed finish.
+ const brushCanvas=document.createElement('canvas');brushCanvas.width=128;brushCanvas.height=64;
+ const brushCtx=brushCanvas.getContext('2d'),brush=brushCtx.createImageData(128,64);
+ for(let y=0;y<64;y++){
+  seed=(seed*1664525+1013904223)>>>0;const row=186+(seed>>>28);
+  for(let x=0;x<128;x++){const k=(y*128+x)*4,n=row+Math.round(Math.sin(x*.16+y*.7)*2);brush.data[k]=brush.data[k+1]=brush.data[k+2]=n;brush.data[k+3]=255;}
+ }
+ brushCtx.putImageData(brush,0,0);
+ const brushedFinish=new THREE.CanvasTexture(brushCanvas);brushedFinish.wrapS=brushedFinish.wrapT=THREE.RepeatWrapping;brushedFinish.repeat.set(1,4);brushedFinish.anisotropy=2;textures.add(brushedFinish);
+ const satin=material({color:'#a9afac',roughness:.52,roughnessMap:brushedFinish,metalness:.76,envMapIntensity:.64});satin.name='Cabin brushed satin';
+ const graphite=material({color:'#697577',roughness:.49,metalness:.44,envMapIntensity:.55});
  const ventBlack=material({color:'#050a0d',roughness:.96,envMapIntensity:.12});
  const warm=basic({color:'#ee975c',toneMapped:false});
  const softWarm=basic({color:'#a97752',toneMapped:false});
- const stitchMat=new THREE.LineBasicMaterial({color:'#968877',transparent:true,opacity:.65});materials.add(stitchMat);
+ const stitchMat=new THREE.LineBasicMaterial({color:'#a29584',transparent:true,opacity:.74});materials.add(stitchMat);
  function add(g,m,pos=[0,0,0],rot=[0,0,0],parent=root){
   const matrix=new THREE.Matrix4().compose(new THREE.Vector3(...pos),new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)),new THREE.Vector3(1,1,1));g.applyMatrix4(matrix);
   let map=batches.get(parent);if(!map){map=new Map();batches.set(parent,map);}if(!map.has(m))map.set(m,[]);map.get(m).push(g);return g;
@@ -44,7 +55,16 @@ export function createCockpit({simple=false}={}) {
   }
   return c;
  }
- function line(points,m=stitchMat,parent=root){const g=new THREE.BufferGeometry().setFromPoints(points.map(p=>new THREE.Vector3(...p)));geometries.add(g);const mesh=new THREE.Line(g,m);parent.add(mesh);return mesh;}
+ function line(points,m=stitchMat,parent=root){
+  const vectors=points.map(p=>new THREE.Vector3(...p));if(vectors.length<2)return;
+  const lengths=[0];for(let i=1;i<vectors.length;i++)lengths.push(lengths.at(-1)+vectors[i].distanceTo(vectors[i-1]));
+  const length=lengths.at(-1);if(!length)return;
+  const at=distance=>{let i=1;while(i<lengths.length-1&&lengths[i]<distance)i++;return vectors[i-1].clone().lerp(vectors[i],(distance-lengths[i-1])/Math.max(1e-8,lengths[i]-lengths[i-1]));};
+  if(!stitchBatches.has(parent))stitchBatches.set(parent,[]);
+  const batch=stitchBatches.get(parent);
+  // 3 mm thread with a 2 mm gap, measured along the seam rather than source vertices.
+  for(let distance=.001;distance<length-.001;distance+=.005){batch.push(at(distance),at(Math.min(distance+.003,length-.001)));}
+ }
  function shapePart(points,depth,pos,m,parent=root){const shape=new THREE.Shape();shape.moveTo(...points[0]);for(const p of points.slice(1))shape.lineTo(...p);shape.closePath();const g=new THREE.ExtrudeGeometry(shape,{depth,steps:1,bevelEnabled:true,bevelThickness:.002,bevelSize:.002,bevelSegments:2});add(g,m,pos,[0,0,0],parent);}
  function cylinder(r,h,pos,m=satin,parent=root,segments=32){add(new THREE.CylinderGeometry(r,r,h,segments),m,pos,[Math.PI/2,0,0],parent);}
  function ring(rx,ry,pos,m=satin,parent=root,r=.0025){const pts=[];for(let i=0;i<48;i++){const a=i/48*Math.PI*2;pts.push([pos[0]+Math.cos(a)*rx,pos[1]+Math.sin(a)*ry,pos[2]]);}return tube(pts,r,m,parent,true,64);}
@@ -202,7 +222,7 @@ export function createCockpit({simple=false}={}) {
  const rimCurve=tube([[0,.155,0],[.080,.136,0],[.136,.083,0],[.154,.01,0],[.139,-.065,0],[.098,-.119,0],[0,-.132,0],[-.098,-.119,0],[-.139,-.065,0],[-.154,.01,0],[-.136,.083,0],[-.080,.136,0]],.0165,rimLeather,steeringWheel,true,112);
  const wheelStitches=[];
  for(let i=0;i<92;i++){const p=rimCurve.getPoint(i/92),p2=rimCurve.getPoint((i+.35)/92);wheelStitches.push(new THREE.Vector3(p.x*.995,p.y*.995,-.0158),new THREE.Vector3(p2.x*.995,p2.y*.995,-.0158));}
- const stitchGeo=new THREE.BufferGeometry().setFromPoints(wheelStitches);geometries.add(stitchGeo);steeringWheel.add(new THREE.LineSegments(stitchGeo,stitchMat));
+ stitchBatches.set(steeringWheel,wheelStitches);
  for(const side of[-1,1]){
   box([.032,.060,.030],[side*.137,.046,-.004],rimLeather,.012,[0,0,-side*.18],steeringWheel);
   const spoke=[[.026,.022],[.115,.040],[.134,.005],[.083,-.020],[.028,-.021]].map(([x,y])=>[x*side,y]);if(side<0)spoke.reverse();shapePart(spoke,.011,[0,0,-.005],satin,steeringWheel);
@@ -219,9 +239,10 @@ export function createCockpit({simple=false}={}) {
  tube([[-.009,.012,-.042],[0,-.003,-.044],[.009,.012,-.042]],.0010,graphite,steeringWheel,false,12);
  ring(.009,.0025,[0,.152,-.0138],softWarm,steeringWheel,.0013);
  box([.024,.008,.004],[0,-.111,-.021],graphite,.003,[0,0,0],steeringWheel);label('GT',[0,-.111,-.024],.021,.008,steeringWheel);
+ for(const [parent,points]of stitchBatches){const g=new THREE.BufferGeometry().setFromPoints(points);geometries.add(g);const seam=new THREE.LineSegments(g,stitchMat);seam.name='Tailored cabin stitching';parent.add(seam);}
  for(const [parent,map]of batches)for(const [m,list]of map){const ready=list.map(g=>{const n=g.index?g.toNonIndexed():g;if(n!==g)g.dispose();for(const key of Object.keys(n.attributes))if(!['position','normal','uv'].includes(key))n.deleteAttribute(key);return n;});const geometry=mergeGeometries(ready,false);for(const g of ready)g.dispose();if(!geometry)throw new Error('Cockpit geometry merge failed');geometry.computeBoundingSphere();geometries.add(geometry);const mesh=new THREE.Mesh(geometry,m);mesh.castShadow=false;mesh.receiveShadow=false;parent.add(mesh);}
  let triangles=0;root.traverse(o=>{if(o.isMesh)triangles+=(o.geometry.index?o.geometry.index.count:o.geometry.attributes.position.count)/3;});
- root.userData.cockpit={triangles,geometries:geometries.size,materials:materials.size,instrumentTop:.857};
+ root.userData.cockpit={triangles,geometries:geometries.size,materials:materials.size,textures:textures.size,stitchDrawCalls:stitchBatches.size,instrumentTop:.857};
  let drawTime=1,lastKey='';
  function draw(p){
   const ctx=gaugeCtx,w=gaugeCanvas.width,h=gaugeCanvas.height,speed=Math.round(Math.abs(p.u||0)*3.6),rpm=Math.max(0,Math.min(1,(p.rpm||900)/8000)),gear=p.gear===-1?'R':p.gear===0?'N':String(p.gear||'N');

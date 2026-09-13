@@ -1,8 +1,15 @@
+// AbortSignal.timeout is absent in some otherwise WebAudio-capable mobile browsers.
+async function fetchAudioBytes(url,timeout){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
+ try{const response=await fetch(url,{signal:controller.signal});if(!response.ok)throw new Error(`Audio HTTP ${response.status}`);return await response.arrayBuffer();}finally{clearTimeout(timer);}
+}
+function decodeAudio(context,bytes){return new Promise((resolve,reject)=>{const result=context.decodeAudioData(bytes,resolve,reject);result?.then(resolve,reject);});}
+const audioBase=()=>import.meta.env?.BASE_URL||'/';
 /** Licensed music, one-shot ignition and short event cues. No continuous engine audio. */
 export class DriveAudio {
-  constructor(){this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.musicStatus='idle';this.musicBuffer=null;this.musicSource=null;this.musicActive=false;this.musicOffset=0;this.musicStartedAt=0;this.startToken=0;this.startSource=null;this.startBuffer=null;this.startPromise=null;}
+  constructor(){this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.musicStatus='idle';this.musicPromise=null;this.musicElement=null;this.musicMediaNode=null;this.musicGain=null;this.musicPlayPending=null;this.musicPlayToken=0;this.musicPriming=false;this.musicPlaybackBlocked=false;this.audioStatus='idle';this.musicFailures=0;this.musicRetryAt=0;this.musicBuffer=null;this.musicSource=null;this.musicActive=false;this.musicOffset=0;this.musicStartedAt=0;this.startToken=0;this.startSource=null;this.startBuffer=null;this.startPromise=null;}
   async init(){
-    if(this.ready){await this.ctx.resume();return;}
+    if(this.ready){const resumed=this.resumeFromGesture();void this.loadMusic();void this.loadStart();await resumed;return;}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
     this.ctx=new AC();const a=this.ctx;
     this.master=a.createGain();this.master.gain.value=.4;this.master.connect(a.destination);
@@ -13,20 +20,35 @@ export class DriveAudio {
     this.noise=noise;
     // Keep music out of the effects compressor to prevent collision-driven pumping.
     this.musicBus=a.createGain();this.musicBus.gain.value=0;this.musicBus.connect(this.master);
-    this.ready=true;this.enabled=true;await a.resume();void this.loadMusic();void this.loadStart();
+    this.ready=true;this.enabled=true;const resumed=this.resumeFromGesture();void this.loadMusic();void this.loadStart();await resumed;
+  }
+  // Call directly from a click/touch handler, before awaits or expensive race setup.
+  resumeFromGesture(){
+    if(!this.ready||!this.enabled)return Promise.resolve(false);
+    const context=this.ctx;let resumed;
+    if(!this.musicBuffer&&!this.musicPromise){this.musicFailures=0;void this.loadMusic();}
+    try{
+      resumed=context.resume();
+      this.requestMusicPlayback(true);
+      if(context.state==='suspended'||context.state==='interrupted'){
+        const source=context.createBufferSource();source.buffer=context.createBuffer(1,1,context.sampleRate);
+        source.connect(context.destination);source.onended=()=>source.disconnect();source.start();
+      }
+    }catch(error){this.audioStatus='blocked';return Promise.resolve(false);}
+    return Promise.resolve(resumed).then(()=>{if(this.ctx!==context||!this.ready)return false;this.audioStatus=context.state||'running';return context.state==='running';},()=>{this.audioStatus='blocked';return false;});
   }
   loadStart(){
+    if(this.startBuffer)return Promise.resolve(this.startBuffer);
+    if(!this.ready)return Promise.resolve(null);
     if(this.startPromise)return this.startPromise;
     const context=this.ctx;
     this.startPromise=(async()=>{
       try{
-        const response=await fetch(import.meta.env.BASE_URL+'audio/engine/ferrari-start-5s.wav',{signal:AbortSignal.timeout(10000)});
-        if(!response.ok)throw new Error(`Ignition HTTP ${response.status}`);
-        const buffer=await context.decodeAudioData(await response.arrayBuffer());
+        const buffer=await decodeAudio(context,await fetchAudioBytes(audioBase()+'audio/engine/ferrari-start-5s.wav',30000));
         if(this.ctx===context&&this.ready)this.startBuffer=buffer;
         return buffer;
       }catch(error){console.warn('Ignition cue unavailable; continuing silently.',error);return null;}
-    })();
+    })().finally(()=>{if(this.ctx===context)this.startPromise=null;});
     return this.startPromise;
   }
   // Called exactly once by startRace. Loading never blocks the countdown.
@@ -46,44 +68,62 @@ export class DriveAudio {
     this.startToken++;
     if(this.startSource){const {source,gain}=this.startSource;this.startSource=null;gain.gain.value=0;source.stop();source.disconnect();gain.disconnect();}
   }
-  async loadMusic(){
-    this.musicStatus='loading';
-    try{
-      const response=await fetch(import.meta.env.BASE_URL+'audio/edm-detection-mode-kevin-macleod.mp3',{signal:AbortSignal.timeout(20000)});
-      if(!response.ok)throw new Error(`Music HTTP ${response.status}`);
-      this.musicBuffer=await this.ctx.decodeAudioData(await response.arrayBuffer());
-      this.musicStatus='ready';
-    }catch(error){this.musicStatus='unavailable';console.warn('Racing track unavailable; music stays silent.',error);}
+  // Stream the six-minute MP3: do not download/decode the whole track into ~129 MB PCM.
+  loadMusic(){
+    if(!this.ready)return Promise.resolve(null);
+    if(this.musicElement){if(this.musicStatus==='unavailable'){this.musicStatus='loading';this.musicElement.load();}return Promise.resolve(this.musicElement);}
+    const Media=globalThis.Audio||globalThis.window?.Audio;if(!Media)return Promise.resolve(null);
+    const context=this.ctx,element=new Media();this.musicElement=element;
+    element.preload='auto';element.loop=true;element.playsInline=true;element.setAttribute?.('playsinline','');
+    element.src=audioBase()+'audio/edm-detection-mode-kevin-macleod.mp3';
+    this.musicMediaNode=context.createMediaElementSource(element);this.musicGain=context.createGain();this.musicGain.gain.value=.72;
+    this.musicMediaNode.connect(this.musicGain);this.musicGain.connect(this.musicBus);this.musicStatus='loading';
+    element.oncanplay=()=>{if(this.musicElement===element&&this.ready){if(!this.musicPlaybackBlocked&&this.musicFailures<3)this.musicStatus='ready';}};
+    element.onerror=()=>{if(this.musicElement!==element||!this.ready)return;this.musicStatus=this.musicPlaybackBlocked?'blocked':'unavailable';this.musicFailures++;this.musicRetryAt=Date.now()+Math.min(15000,2000*2**(this.musicFailures-1));};
+    element.load();return Promise.resolve(element);
   }
-  // Audio nodes are allocated only on playback transitions, never every frame.
+  // The first play() is made directly in the same user gesture as AudioContext.resume().
+  // Its bus stays silent until racing; once primed, programmatic pause/resume keeps position.
+  requestMusicPlayback(prime=false){
+    const element=this.musicElement;if(!element||!this.ready||!this.enabled||this.musicPlayPending)return;
+    if(this.musicPlaybackBlocked&&!prime)return;
+    if(prime)this.musicPlaybackBlocked=false;
+    const token=++this.musicPlayToken;this.musicPriming=prime;
+    let playing;try{playing=element.play();}catch(error){this.musicPlaybackBlocked=error?.name==='NotAllowedError';this.musicStatus=this.musicPlaybackBlocked?'blocked':'unavailable';if(!this.musicPlaybackBlocked){this.musicFailures++;this.musicRetryAt=Date.now()+Math.min(15000,2000*2**(this.musicFailures-1));}this.musicPriming=false;return;}
+    if(this.musicActive)this.musicSource={source:element,gain:this.musicGain};
+    this.musicPlayPending=Promise.resolve(playing).then(()=>{
+      if(token!==this.musicPlayToken)return;
+      this.musicPlaybackBlocked=false;this.musicFailures=0;this.musicStatus='ready';if(!this.musicActive||!this.enabled){element.pause();this.musicSource=null;}
+      else this.musicSource={source:element,gain:this.musicGain};
+    },error=>{if(token===this.musicPlayToken&&error?.name!=='AbortError'){this.musicPlaybackBlocked=error?.name==='NotAllowedError';this.musicStatus=this.musicPlaybackBlocked?'blocked':'unavailable';if(this.musicStatus==='unavailable'){this.musicFailures++;this.musicRetryAt=Date.now()+Math.min(15000,2000*2**(this.musicFailures-1));}this.musicSource=null;}}).finally(()=>{if(token===this.musicPlayToken){this.musicPlayPending=null;this.musicPriming=false;}});
+  }
   updateMusic(active){
-    const a=this.ctx,t=a.currentTime;
-    if(!active&&this.musicSource){
-      const {source,gain}=this.musicSource;
-      this.musicOffset=(this.musicOffset+t-this.musicStartedAt)%this.musicBuffer.duration;
-      gain.gain.cancelScheduledValues(t);gain.gain.setTargetAtTime(0,t,.045);
-      source.stop(t+.22);this.musicSource=null;
-    }
-    if(active&&this.musicBuffer&&!this.musicSource){
-      const source=a.createBufferSource(),gain=a.createGain();
-      source.buffer=this.musicBuffer;source.loop=true;gain.gain.setValueAtTime(0,t);gain.gain.setTargetAtTime(.72,t,.18);
-      source.connect(gain);gain.connect(this.musicBus);
-      source.onended=()=>{source.disconnect();gain.disconnect();};
-      source.start(0,this.musicOffset);this.musicStartedAt=t;this.musicSource={source,gain};
-    }
     this.musicActive=active;
+    if(!this.musicElement)return;
+    if(!active){if(!this.musicPriming)this.pauseMusic();return;}
+    if(this.musicElement.paused&&!this.musicPlayPending&&this.musicStatus!=='blocked'&&this.musicStatus!=='unavailable')this.requestMusicPlayback();
+  }
+  // Also called by explicit pause/visibility handlers before the next animation frame.
+  pauseMusic(){
+    this.musicActive=false;this.musicPlayToken++;this.musicPlayPending=null;this.musicPriming=false;
+    if(this.musicElement){this.musicElement.pause();this.musicOffset=this.musicElement.currentTime||0;}
+    this.musicSource=null;if(this.ready)this.musicBus.gain.setTargetAtTime(0,this.ctx.currentTime,.03);
   }
   resetMusic(){
-    if(this.ready)this.updateMusic(false);
-    this.musicOffset=0;
+    // startRace initializes at the beginning of its gesture, then resets race state.
+    // Do not abort that very first pending media unlock before data has arrived.
+    if(!this.musicPriming)this.pauseMusic();this.musicOffset=0;
+    if(this.musicElement){try{this.musicElement.currentTime=0;}catch{this.musicElement.onloadedmetadata=()=>{if(this.musicElement)this.musicElement.currentTime=0;};}}
   }
   async dispose(){
     if(!this.ready)return;
-    this.updateMusic(false);this.stopStart();this.startBuffer=null;this.startPromise=null;
-    this.ready=false;this.enabled=false;this.musicBuffer=null;this.musicOffset=0;
+    this.pauseMusic();this.stopStart();this.startBuffer=null;this.startPromise=null;
+    if(this.musicElement){this.musicElement.oncanplay=null;this.musicElement.onerror=null;this.musicElement.onloadedmetadata=null;this.musicElement.removeAttribute('src');this.musicElement.load();}
+    this.musicMediaNode?.disconnect();this.musicGain?.disconnect();this.musicElement=null;this.musicMediaNode=null;this.musicGain=null;
+    this.ready=false;this.enabled=false;this.musicBuffer=null;this.musicPromise=null;this.musicOffset=0;
     await this.ctx.close();
   }
-  setEnabled(value){this.enabled=value;if(!value)this.stopStart();if(this.ready){this.master.gain.setTargetAtTime(value?.4:0,this.ctx.currentTime,.06);if(value)this.ctx.resume();}}
+  setEnabled(value){this.enabled=value;if(!value){this.stopStart();if(this.ready)this.pauseMusic();}if(this.ready){this.master.gain.setTargetAtTime(value?.4:0,this.ctx.currentTime,.06);if(value){void this.resumeFromGesture();void this.loadMusic();}}}
   tone(freq,duration=.15,volume=.12,type='sine',destination=null,when=null){if(!this.ready)return;const a=this.ctx,t=when??a.currentTime,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g);g.connect(destination||this.compressor);o.start(t);o.stop(t+duration+.03);}
   noiseHit(duration=.13,volume=.15,frequency=2500,destination=null,when=null){if(!this.ready)return;const a=this.ctx,t=when??a.currentTime,n=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();n.buffer=this.noise;f.type='highpass';f.frequency.value=frequency;g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);n.connect(f);f.connect(g);g.connect(destination||this.compressor);n.start(t);n.stop(t+duration+.02);}
   count(last=false){this.tone(last?880:440,last?.45:.13,.16);}
@@ -92,7 +132,8 @@ export class DriveAudio {
   update(player,track,rivals,active,progress){
     if(!this.ready)return;const t=this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.enabled?.4:0,t,.1);
-    this.musicBus.gain.setTargetAtTime(active?this.musicVolume*.4:0,t,.16);
-    this.updateMusic(active);
+    this.musicBus.gain.setTargetAtTime(active&&this.enabled?Math.max(0,Math.min(1,this.musicVolume))*.4:0,t,.16);
+    this.updateMusic(active&&this.enabled);
+    if(active&&this.enabled&&this.musicStatus==='unavailable'&&this.musicFailures<3&&Date.now()>=this.musicRetryAt)void this.loadMusic();
   }
 }

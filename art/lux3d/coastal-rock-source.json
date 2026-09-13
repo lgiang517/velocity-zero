@@ -1,0 +1,14 @@
+{
+  "provider": "Aholo Lux3D",
+  "version": "G1",
+  "taskId": 3429656,
+  "generatedAt": "2026-09-13",
+  "requestFaceCount": 35000,
+  "style": "photorealistic",
+  "outputUrl": "https://qhsmodel.kujiale.com/lux3dPbrEmbedResult/deb51628243546e1866d6bf060a4d6f6/textured.glb",
+  "sourceFile": "art/lux3d/coastal-rock-source.glb",
+  "runtimeFile": "public/models/coastal-rock/coastal-rock-lods.glb",
+  "blenderFile": "art/lux3d/coastal-rock-lods.blend",
+  "processor": "Blender 5.2.1 LTS",
+  "prompt": "A single photorealistic coastal sandstone rock formation for a real-time driving game: broad asymmetrical weathered sea-cliff outcrop with a naturally eroded small arch opening in its lower half, layered sediment strata, fractured angular faces, rounded wind-eroded edges, gray beige warm stone with subtle dark crevices, tiny sparse moss patches. Approximately 12 meters wide, 7 meters high, 5 meters deep. Freestanding rock cluster with a broad stable rough base that can be partially embedded into terrain. Realistic geological silhouette, no perfect symmetry, no sculpted statue appearance. PBR textured, correct ambient occlusion without baked directional lighting, clean closed game asset with reasonable topology. Isolated object only; no landscape ground plane, no water, no road, no sky, no people, no buildings, no plants extending outside the rock, no labels or text."
+}

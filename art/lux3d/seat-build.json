@@ -1,0 +1,95 @@
+{
+  "generator": "Aholo Lux3D G1",
+  "taskId": 3430884,
+  "processor": "5.2.1 LTS",
+  "sourceTriangles": 17200,
+  "triangles": 8190,
+  "vertices": 4088,
+  "materials": 1,
+  "textures": [
+    {
+      "name": "Image_0",
+      "sourceSize": [
+        2048,
+        2048
+      ],
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "name": "Image_1",
+      "sourceSize": [
+        2048,
+        2048
+      ],
+      "size": [
+        1024,
+        1024
+      ]
+    }
+  ],
+  "rotationAroundUpDegrees": 0,
+  "sourceUpperBackMeanBlenderY": 0.38816489364202106,
+  "blenderBounds": [
+    [
+      -0.24500000476837158,
+      -0.2799999713897705,
+      0.0
+    ],
+    [
+      0.24500000476837158,
+      0.2799999713897705,
+      0.7400000095367432
+    ]
+  ],
+  "glTFBounds": [
+    [
+      -0.245,
+      0,
+      -0.28
+    ],
+    [
+      0.245,
+      0.74,
+      0.28
+    ]
+  ],
+  "units": "metres",
+  "up": "+Y",
+  "front": "+Z",
+  "origin": "horizontal bounds centre at the lowest seat point",
+  "glbBytes": 409072,
+  "glbSha256": "5b17cfcfff9bee7c67ef5387b45a73e58a31053167998a28222c9cc04c507230",
+  "normalMap": "not present in Lux3D source; no artificial normal map added",
+  "processing": [
+    "weld coincident vertices while preserving loop UVs",
+    "clear imported split normals and recalculate smooth surface",
+    "two light smoothing passes before decimation",
+    "metallic=0; generated roughness remapped to leather range",
+    "resize genuine generated maps to 1024; JPEG quality 82"
+  ],
+  "verifiedGLB": {
+    "meshes": 1,
+    "primitives": 1,
+    "triangles": 8190,
+    "exportedVertices": 7760,
+    "materials": 1,
+    "embeddedImages": 2,
+    "bounds": [
+      [
+        -0.24500000476837158,
+        0,
+        -0.2799999713897705
+      ],
+      [
+        0.24500000476837158,
+        0.7400000095367432,
+        0.2799999713897705
+      ]
+    ],
+    "allAttributesFinite": true,
+    "requiresGeometryDecoder": false
+  }
+}

@@ -18,13 +18,13 @@ Licensed under **Creative Commons Attribution 4.0 International (CC BY 4.0)**.
 - Decoded duration: 365.688 seconds (6:05.688), stereo, 44.1 kHz MP3; 11,704,283 bytes.
 - Full-file loudness analysis: -12.43 LUFS integrated, +0.18 dBTP true peak, 3.90 LU loudness range. Playback applies substantial gain reduction; the source is not amplified.
 
-The downloaded recording is unmodified. The game loops it, applies playback volume, and fades it on transitions. Pausing retains playback position; `resetMusic()` returns to the beginning for a new race. The composer does not endorse this game.
+The downloaded recording is unmodified. The game streams it through an HTMLAudioElement and a Web Audio gain bus, loops it and applies playback volume. It fades in on racing and immediately pauses on pause/menu/finish, including when background animation frames stop. It no longer downloads and decodes the entire six-minute track before playback. Pausing retains playback position; `resetMusic()` returns to the beginning for a new race. The composer does not endorse this game.
 
 Required visible game credit: **EDM Detection Mode — Kevin MacLeod (incompetech.com) · CC BY 4.0**, with links to the track and license above.
 
 The download was completely decoded and measured with FFmpeg. This verifies format and file integrity; it does not constitute a listening review.
 
-The music has no added rival, wind, tire or fallback bass layers. If the recording cannot load or decode, music stays silent. Short event cues and the single ignition sound described below remain available.
+The music has no added rival, wind, tire or fallback bass layers. Transient music load failures receive up to three automatic recovery attempts with backoff; an explicit play/resume gesture can retry again. If the recording remains unavailable or the browser denies playback, music stays silent. Playback is unlocked in the same user gesture as Start/Resume/Unmute, before expensive scene setup. Short event cues and the single ignition sound described below remain available.
 
 ## Retained previous asset (not played)
 

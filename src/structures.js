@@ -2,14 +2,15 @@ import * as THREE from 'three';
 
 function batch(scene,geometry,material,items){
  const mesh=new THREE.InstancedMesh(geometry,material,items.length),dummy=new THREE.Object3D();
- for(let i=0;i<items.length;i++){const q=items[i];dummy.position.copy(q.p);dummy.rotation.set(0,q.heading||0,0);dummy.scale.set(...(q.scale||[1,1,1]));dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);}
+ for(let i=0;i<items.length;i++){const q=items[i];dummy.position.copy(q.p);dummy.rotation.set(q.pitch||0,q.heading||0,0,'YXZ');dummy.scale.set(...(q.scale||[1,1,1]));dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);}
  mesh.receiveShadow=true;mesh.computeBoundingSphere();scene.add(mesh);return mesh;
 }
 
 export function addBridgeDetail(world){
  const {track,scene}=world,start=track.length*.90,end=track.length*.993;
  const deck=[],ribs=[],caps=[];
- for(let s=start;s<end;s+=12){const q=track.sample(s);deck.push({p:track.point(s,0,-.64),heading:q.heading,scale:[22,.95,12.3]});ribs.push({p:track.point(s,0,-1.2),heading:q.heading,scale:[23,.6,.45]});}
+ // Pitch deck slabs with the road so their downhill ends stay below the asphalt.
+ for(let s=start;s<end;s+=12){const q=track.sample(s),pitch=-Math.atan2(q.tan.y,Math.hypot(q.tan.x,q.tan.z));deck.push({p:track.point(s,0,-.64),heading:q.heading,pitch,scale:[22,.95,12.3]});ribs.push({p:track.point(s,0,-1.2),heading:q.heading,pitch,scale:[23,.6,.45]});}
  for(const f of[.25,.72])for(const side of[-1,1]){
   const s=start+(end-start)*f,q=track.sample(s);
   caps.push({p:track.point(s,side*12,1.7),heading:q.heading,scale:[2.2,3.4,3.2]});

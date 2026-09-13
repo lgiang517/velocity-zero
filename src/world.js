@@ -1,3 +1,7 @@
+import {loadCoastalLandmarks} from './coastal-landmarks.js';
+import {renderQuality,setComposerSamples} from './render-quality.js';
+import {QualityBloomPass} from './quality-bloom.js';
+import {VehicleReflections} from './vehicle-reflections.js';
 import {SunShadows} from './lighting.js';
 import {DrivingCamera} from './driving-camera.js';
 import {buildCoastalScenery} from './scenery.js';
@@ -8,7 +12,6 @@ import {buildAtmosphere,buildCoastalOcean,createOutdoorEnvironment} from './atmo
 import {buildCoastalTerrain} from './terrain.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import {clamp,damp} from './physics.js';
 
@@ -30,14 +33,15 @@ export class GameWorld {
     this.scene.add(new THREE.HemisphereLight('#c4dbe4','#3b4940',2.3));
     this.ambient=this.scene.children[0];
     this.sun=new THREE.DirectionalLight('#ffe2b7',3.3);this.sun.position.set(-450,450,700);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);Object.assign(this.sun.shadow.camera,{left:-28,right:28,top:28,bottom:-28,near:1,far:1400});this.sun.shadow.bias=-.00010;this.sun.shadow.normalBias=.018;this.scene.add(this.sun,this.sun.target);
-    this.env=createOutdoorEnvironment(this.renderer);this.scene.environment=this.env.texture;
+    this.env=createOutdoorEnvironment(this.renderer);this.scene.environment=this.env.texture;this.vehicleReflections=new VehicleReflections(this.renderer);
     this.uniforms={time:{value:0},wet:{value:0},night:{value:0},sunDir:{value:new THREE.Vector3(-.56,.32,.77).normalize()}};
     this.buildSky();this.buildOcean();this.buildRoad();this.buildTerrain();this.buildScenery();this.buildBridge();addBridgeDetail(this);this.buildTunnel();this.buildSigns();this.buildParticles();
     this.headlight=new THREE.SpotLight('#f4edce',100,95,.45,.7,1.5);this.scene.add(this.headlight,this.headlight.target);
-    const target=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:4});
+    const target=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:2});
     this.composer=new EffectComposer(this.renderer,target);this.composer.addPass(new RenderPass(this.scene,this.camera));
-    this.bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth/2,innerHeight/2),.22,.45,1.15);this.composer.addPass(this.bloom);this.composer.addPass(new OutputPass());
-    this.cameraRig=new DrivingCamera(this.camera);this.initializedCamera=false;this.sunShadows=new SunShadows(this);
+    this.bloom=new QualityBloomPass(new THREE.Vector2(innerWidth,innerHeight),.18,.35,1.2);this.composer.addPass(this.bloom);this.composer.addPass(new OutputPass());
+    this.cameraRig=new DrivingCamera(this.camera);this.initializedCamera=false;this.sunShadows=new SunShadows(this);this.setQuality(this.quality);
+    this.landmarks=null;this.landmarksReady=loadCoastalLandmarks(this).then(x=>this.landmarks=x).catch(error=>console.warn('Coastal landmarks unavailable',error));
   }
   prepareShadows(root){this.sunShadows.prepare(root);}
   buildSky(){buildAtmosphere(this);}
@@ -54,9 +58,14 @@ export class GameWorld {
       shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
         float detailFade=1.-smoothstep(18.,65.,length(vViewPosition));float grain=mix(.5,hash(vRoad*80.),detailFade);float roadPatch=noise(vRoad*vec2(.35,.07));
         vec3 asphalt=vec3(.040,.047,.050)+(grain-.5)*.016+(roadPatch-.5)*.026;
-        float edge=1.-smoothstep(.045,.083,abs(abs(vRoad.x)-7.65));
-        float center=1.-smoothstep(.025,.053,abs(abs(vRoad.x)-.12));
-        float lane=(1.-smoothstep(.025,.068,abs(abs(vRoad.x)-3.85)))*step(5.,mod(vRoad.y,13.));
+        // Integrate subpixel paint coverage; MSAA only filters geometry silhouettes.
+        float roadPixel=max(fwidth(vRoad.x),.001);
+        float edge=clamp((.064-abs(abs(vRoad.x)-7.65))/roadPixel+.5,0.,1.);
+        float center=clamp((.039-abs(abs(vRoad.x)-.12))/roadPixel+.5,0.,1.);
+        float alongPixel=max(fwidth(vRoad.y),.001),dashPhase=mod(vRoad.y,13.);
+        float dash=clamp((dashPhase-5.)/alongPixel+.5,0.,1.)*clamp((13.-dashPhase)/alongPixel+.5,0.,1.);
+        dash=mix(dash,8./13.,smoothstep(3.,13.,alongPixel));
+        float lane=clamp((.0465-abs(abs(vRoad.x)-3.85))/roadPixel+.5,0.,1.)*dash;
         float crack=(1.-smoothstep(.013,.045,abs(vRoad.x-(noise(vec2(vRoad.y*.3,2.))-.5)*12.)))*step(.75,noise(vec2(vRoad.y*.05,4.)));
         asphalt*=1.-crack*.26;float repair=step(.76,noise(vRoad*vec2(.065,.035)));asphalt*=1.-repair*.19;
         asphalt=mix(asphalt,vec3(.76,.75,.64),max(edge,lane)*.88);
@@ -116,9 +125,19 @@ export class GameWorld {
     const markGeo=new THREE.BufferGeometry();this.skidPositions=new Float32Array(1600*6);markGeo.setAttribute('position',new THREE.BufferAttribute(this.skidPositions,3));this.skids=new THREE.LineSegments(markGeo,new THREE.LineBasicMaterial({color:'#182123',transparent:true,opacity:.45}));this.skids.frustumCulled=false;this.scene.add(this.skids);this.skidCursor=0;this.lastSkids=null;
   }
   emit(p,color,count=8){const positions=this.particleGeometry.attributes.position.array,colors=this.particleGeometry.attributes.color.array,col=new THREE.Color(color);for(let j=0;j<count;j++){const i=this.particleCursor++%this.particleLife.length;positions.set([p.x,p.y+.3,p.z],i*3);colors.set([col.r,col.g,col.b],i*3);this.particleLife[i]=.5+Math.random()*.5;this.particleVelocity.set([(Math.random()-.5)*7,Math.random()*4,(Math.random()-.5)*7],i*3);}this.particleGeometry.attributes.color.needsUpdate=true;}
-  setQuality(value){this.quality=value;this.bloom.enabled=value!=='low';this.renderer.shadowMap.enabled=value!=='low';this.resize();}
-  resize(){const canvas=this.renderer.domElement,width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight),cap=this.quality==='high'?2:this.quality==='low'||matchMedia('(pointer:coarse)').matches?1:1.5,ratio=Math.min(devicePixelRatio,cap);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(ratio);this.renderer.setSize(width,height,false);this.composer.setPixelRatio(ratio);this.composer.setSize(width,height);}
+  setQuality(value){this.quality=value;this.resize();}
+  resize(){
+    const canvas=this.renderer.domElement,width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);
+    const budget=renderQuality(this.quality,{coarse:matchMedia('(pointer:coarse)').matches,dpr:devicePixelRatio,maxSamples:this.renderer.capabilities.maxSamples});
+    this.quality=budget.name;this.renderBudget=budget;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
+    this.bloom.enabled=budget.bloomScale>0;this.bloom.resolutionScale=budget.bloomScale||.5;
+    this.renderer.shadowMap.enabled=budget.shadowSize>0;this.sunShadows.setQuality(budget);
+    setComposerSamples(this.composer,budget.samples);
+    this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(budget.pixelRatio);this.renderer.setSize(width,height,false);
+    this.composer.setPixelRatio(budget.pixelRatio);this.composer.setSize(width,height);
+  }
   update(dt,player,car,mode='menu',cameraMode=0){
+    this.reflectionCar=car;this.reflectionDt=dt;this.reflectionInside=cameraMode===1&&mode!=='menu';
     this.time+=dt;this.uniforms.time.value=this.time;
     this.tunnelAmount=damp(this.tunnelAmount,this.track.inTunnel(player.s)?1:0,3,dt);
     let targetWet=this.weather==='rain'?.7:this.weather==='storm'?1:0,targetNight=this.weather==='night'?1:this.weather==='storm'?.55:0;
@@ -134,13 +153,13 @@ export class GameWorld {
     this.buildingMaterial.emissiveIntensity=.05+this.night*.9;this.lampMaterial.emissiveIntensity=1.3+this.night*2;
     const q=this.track.sample(player.s);car.root.position.copy(q.p);car.root.rotation.set(-Math.asin(q.slope),q.heading+player.yaw,0,'YXZ');
     const pos=car.root.position,forward=new THREE.Vector3(Math.sin(q.heading+player.yaw),0,Math.cos(q.heading+player.yaw));
-    car.root.position.addScaledVector(q.right,player.d);car.paint.roughness=.24-this.wet*.08;if(car.brakeGlow)car.brakeGlow.intensity*=.06+this.night*.50;
+    car.root.position.addScaledVector(q.right,player.d);car.setWetness(this.wet);if(car.brakeGlow)car.brakeGlow.intensity*=.06+this.night*.50;
     this.sky.position.copy(this.camera.position);
     this.headlight.position.copy(pos).addScaledVector(forward,2).add(new THREE.Vector3(0,.7,0));this.headlight.target.position.copy(pos).addScaledVector(forward,50);this.headlight.intensity=25+this.night*140+this.tunnelAmount*160;
     this.tunnelFill.position.copy(this.track.point(player.s+9,0,6));this.tunnelFill.intensity=this.tunnelAmount*230;
     this.tunnelFill2.position.copy(this.track.point(player.s-13,0,5));this.tunnelFill2.intensity=this.tunnelAmount*160;
     if(!this.initializedCamera)this.cameraRig.reset();
-    this.cameraRig.update(dt,car,player,q,mode,cameraMode,this.groundHeight);this.initializedCamera=true;this.sunShadows.update();
+    this.cameraRig.update(dt,car,player,q,mode,cameraMode,this.groundHeight);this.initializedCamera=true;this.updateVegetationLod?.(this.camera);this.landmarks?.update(this.camera,this.quality);this.sunShadows.update();
     this.rain.visible=this.wet>.1;this.rain.position.copy(pos);this.rain.position.y-=this.time*22%30;this.rain.material.opacity=this.wet*.36;
     for(const rotor of this.turbines)rotor.rotation.z+=dt*.34;
     const a=this.particleGeometry.attributes.position.array;for(let i=0;i<this.particleLife.length;i++){if(this.particleLife[i]>0){this.particleLife[i]-=dt;this.particleVelocity[i*3+1]-=dt*9;for(let j=0;j<3;j++)a[i*3+j]+=this.particleVelocity[i*3+j]*dt;}else a[i*3+1]=-50;}this.particleGeometry.attributes.position.needsUpdate=true;
@@ -150,7 +169,7 @@ export class GameWorld {
     }else this.lastSkids=null;
     if(mode==='race'&&this.wet>.4&&player.u>20&&Math.random()<.4)this.emit(this.track.point(player.s-2,player.d,.05),'#a3bbb8',2);
   }
-  render(){this.renderer.info.reset();if(this.quality==='low')this.renderer.render(this.scene,this.camera);else this.composer.render();}
+  render(){this.renderer.info.reset();if(this.reflectionCar)this.vehicleReflections.update(this,this.reflectionCar,this.reflectionDt,this.reflectionInside);if(this.quality==='low')this.renderer.render(this.scene,this.camera);else this.composer.render();}
 }
 
 

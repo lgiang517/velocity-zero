@@ -1,0 +1,90 @@
+{
+  "generator": "Aholo Lux3D G1",
+  "taskId": 3431485,
+  "source": "art/lux3d/car-plated-source.glb",
+  "blender": "5.2.1 LTS",
+  "method": "Lux lower body with 12mm solid repair and exact wheel/lamp cuts; manually rebuilt shared-boundary canopy/roof/four windows/pillars; low fitted bonnet; full black wheel housings",
+  "uniformScale": 0.96875,
+  "triangles": 73914,
+  "primitives": 48,
+  "materials": [
+    "Graphite",
+    "Paint",
+    "Cabin lining",
+    "Alloy",
+    "Plate",
+    "Headlight",
+    "Glass",
+    "Tail",
+    "Wheel surface",
+    "Window glass"
+  ],
+  "glbBytes": 2787508,
+  "wheelNodes": [
+    {
+      "children": [
+        36
+      ],
+      "extras": {
+        "tireRadius": 0.39040625,
+        "tireWidth": 0.2325
+      },
+      "name": "Wheel_FL",
+      "translation": [
+        0.871874988079071,
+        0.39701804518699646,
+        1.3882187604904175
+      ]
+    },
+    {
+      "children": [
+        38
+      ],
+      "extras": {
+        "tireRadius": 0.39040625,
+        "tireWidth": 0.2325
+      },
+      "name": "Wheel_FR",
+      "translation": [
+        -0.871874988079071,
+        0.39701804518699646,
+        1.3882187604904175
+      ]
+    },
+    {
+      "children": [
+        40
+      ],
+      "extras": {
+        "tireRadius": 0.38769375,
+        "tireWidth": 0.2325
+      },
+      "name": "Wheel_RL",
+      "translation": [
+        0.871874988079071,
+        0.3902367949485779,
+        -1.3388124704360962
+      ]
+    },
+    {
+      "children": [
+        42
+      ],
+      "extras": {
+        "tireRadius": 0.38769375,
+        "tireWidth": 0.2325
+      },
+      "name": "Wheel_RR",
+      "translation": [
+        -0.871874988079071,
+        0.3902367949485779,
+        -1.3388124704360962
+      ]
+    }
+  ],
+  "driverHoodMaterials": [
+    "Paint",
+    "Cabin lining"
+  ],
+  "preview": "output/car-detail/lux-continuous-{front,rear,side}.jpg"
+}

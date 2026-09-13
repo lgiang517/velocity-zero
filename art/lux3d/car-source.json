@@ -1,0 +1,18 @@
+{
+  "generator": "Aholo Lux3D",
+  "version": "G1",
+  "taskId": 3431294,
+  "inputFourViewTaskId": 3430881,
+  "sourceReferId": "641198306",
+  "status": 3,
+  "outputUrl": "https://qhsmodel.kujiale.com/lux3dPbrEmbedResult/bb54e463be2d4d8182a0047c19426e00/textured.glb",
+  "requestedFaces": 120000,
+  "rawBytes": 12423300,
+  "sha256": "c17f1922fb8c525f8afb49f062eb2604ecc7271d7ab72c3b143c364aeac0c1ae",
+  "inputRecord": "car-source-inputs.json",
+  "qualityDecision": {
+    "accepted": false,
+    "reason": "Blender source previews show two separate incomplete car bodies rather than one car; extensive door and window artifacts",
+    "replacementTaskId": 3431485
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "taskId": 3430881,
+  "usedByTaskId": 3431294,
+  "inputs": [
+    {
+      "view": 1,
+      "url": "https://qhmtl-cos.kujiale.com/materialtexture/e1b/594/0c4dbcc4f34ffc01425f5d49a27a9afeb311fe44.png",
+      "bytes": 1179204,
+      "sha256": "43a8037d9beb2b9dec48f8035fc6cefce3f881a05b035be7355837819a0e93a2"
+    },
+    {
+      "view": 2,
+      "url": "https://qhmtl-cos.kujiale.com/materialtexture/04f/544/581a4674029af31896d1849b3065ceb46d1110e5.png",
+      "bytes": 1118437,
+      "sha256": "bbcbc268eb59e18064b56d6842807f396517592f1fc713cd95ddf495f3dcfe15"
+    },
+    {
+      "view": 3,
+      "url": "https://qhmtl-cos.kujiale.com/materialtexture/99e/b0d/a87ca3d8d25ffe6f28a22030313dd4d954103137.png",
+      "bytes": 1061175,
+      "sha256": "3834ad643958c6b953cef91f670f065d701ef094f9fbe464a88d7b530e1b44c3"
+    },
+    {
+      "view": 4,
+      "url": "https://qhmtl-cos.kujiale.com/materialtexture/e1b/e35/6aebfd9c9cf759573afb8c34ece5672e0a10000e.png",
+      "bytes": 1048590,
+      "sha256": "91f2ae03226f8589aa1daa8bee00daec278d91809bf29043d286698e2603c2bf"
+    }
+  ]
+}
