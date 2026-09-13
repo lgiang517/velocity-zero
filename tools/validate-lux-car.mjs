@@ -48,14 +48,14 @@ export function cabinRayReport(report){
 
 /** Sample the inset convex footprint, excluding window frames and panel edge bevels. This is
  * a diagnostic of sampled holes, not a guarantee of watertightness or intentional cutout validity. */
-export function panelCoverageReport(report,{resolution=13,inset=.18}={}){
+export function panelCoverageReport(report,{resolution=13,inset=.18,backfaceCulling=false}={}){
  const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
  function hull(points){const sorted=[...new Map(points.map(p=>[p.join(','),p])).values()].sort((a,b)=>a[0]-b[0]||a[1]-b[1]);const lower=[],upper=[];for(const p of sorted){while(lower.length>1&&cross(lower.at(-2),lower.at(-1),p)<=0)lower.pop();lower.push(p);}for(const p of sorted.reverse()){while(upper.length>1&&cross(upper.at(-2),upper.at(-1),p)<=0)upper.pop();upper.push(p);}return lower.slice(0,-1).concat(upper.slice(0,-1));}
- const panels=new Map();for(const g of report.geometries.filter(g=>g.name==='Driver_hood'||g.material==='Window glass')){if(!panels.has(g.name))panels.set(g.name,{name:g.name,points:[],indices:[]});const panel=panels.get(g.name),offset=panel.points.length;panel.points.push(...g.points);panel.indices.push(...g.indices.map(i=>i+offset));}
+ const panels=new Map();for(const g of report.geometries.filter(g=>g.name==='Driver_hood'||g.name==='Unified canopy roof'||g.material==='Window glass')){if(!panels.has(g.name))panels.set(g.name,{name:g.name,points:[],indices:[]});const panel=panels.get(g.name),offset=panel.points.length;panel.points.push(...g.points);panel.indices.push(...g.indices.map(i=>i+offset));}
  return [...panels.values()].map(g=>{
   const box=new THREE.Box3().setFromPoints(g.points),size=box.getSize(new THREE.Vector3()).toArray(),axis=g.name==='Driver_hood'?1:size.indexOf(Math.min(...size)),plane=[0,1,2].filter(n=>n!==axis),points=g.points.map(p=>p.toArray()),outline=hull(points.map(p=>plane.map(i=>p[i]))),center=outline.reduce((a,p)=>[a[0]+p[0]/outline.length,a[1]+p[1]/outline.length],[0,0]),inner=outline.map(p=>p.map((v,i)=>v*(1-inset)+center[i]*inset)),min=[0,1].map(i=>Math.min(...inner.map(p=>p[i]))),max=[0,1].map(i=>Math.max(...inner.map(p=>p[i]))),misses=[];let sampled=0;
   const direction=new THREE.Vector3();direction.setComponent(axis,-1);
-  for(let u=0;u<resolution;u++)for(let v=0;v<resolution;v++){const p=[min[0]+(max[0]-min[0])*(u+.5)/resolution,min[1]+(max[1]-min[1])*(v+.5)/resolution];if(!inner.every((a,i)=>cross(a,inner[(i+1)%inner.length],p)>=-1e-9))continue;sampled++;const origin=new THREE.Vector3();origin.setComponent(axis,box.max.getComponent(axis)+1);plane.forEach((a,i)=>origin.setComponent(a,p[i]));const ray=new THREE.Ray(origin,direction);let hit=false;for(let k=0;k<g.indices.length;k+=3)if(ray.intersectTriangle(g.points[g.indices[k]],g.points[g.indices[k+1]],g.points[g.indices[k+2]],false,new THREE.Vector3())){hit=true;break;}if(!hit)misses.push(p);}
+  for(let u=0;u<resolution;u++)for(let v=0;v<resolution;v++){const p=[min[0]+(max[0]-min[0])*(u+.5)/resolution,min[1]+(max[1]-min[1])*(v+.5)/resolution];if(!inner.every((a,i)=>cross(a,inner[(i+1)%inner.length],p)>=-1e-9))continue;sampled++;const origin=new THREE.Vector3();origin.setComponent(axis,box.max.getComponent(axis)+1);plane.forEach((a,i)=>origin.setComponent(a,p[i]));const ray=new THREE.Ray(origin,direction);let hit=false;for(let k=0;k<g.indices.length;k+=3)if(ray.intersectTriangle(g.points[g.indices[k]],g.points[g.indices[k+1]],g.points[g.indices[k+2]],backfaceCulling,new THREE.Vector3())){hit=true;break;}if(!hit)misses.push(p);}
   return {name:g.name,axis,sampled,misses,coverage:(sampled-misses.length)/sampled};
  });
 }
@@ -68,4 +68,36 @@ export function driverHoodVisibilityReport(report){
   let maxY=-Infinity,aboveEye=0,vertices=0;for(const g of primitives)for(const point of g.points){const y=point.y*heightScale;maxY=Math.max(maxY,y);vertices++;if(y>1.03+1e-6)aboveEye++;}
   return {id,maxY,eyeY:1.03,aboveEye,vertices};
  });
+}
+
+/** Rays from the chase-camera side must meet the boot lid, never the trunk floor.
+ * The inset rectangle stays clear of glass, wheel openings and the tail's outer lip. */
+export function rearDeckCoverageReport(report){
+ const geometries=report.geometries.filter(g=>!g.name.startsWith('Wheel_'));
+ const failures=[],samples=[];const down=new THREE.Vector3(0,-1,0);
+ for(let row=0;row<9;row++)for(let col=0;col<13;col++){
+  const x=-.74+1.48*col/12,z=-2.22+.42*row/8,origin=new THREE.Vector3(x,2,z),ray=new THREE.Ray(origin,down);let nearest=null;
+  for(const g of geometries)for(let i=0;i<g.indices.length;i+=3){
+   const hit=ray.intersectTriangle(g.points[g.indices[i]],g.points[g.indices[i+1]],g.points[g.indices[i+2]],true,new THREE.Vector3());
+   if(hit&&(!nearest||hit.y>nearest.y))nearest={y:hit.y,name:g.name,material:g.material};
+  }
+  const sample={x,z,hit:nearest};samples.push(sample);
+  if(!nearest||nearest.y<.74||nearest.material!=='Paint')failures.push(sample);
+ }
+ return {sampled:samples.length,failures,samples};
+}
+
+/** The fascia above the diffuser must hide the rear wheel/cabin cavity. */
+export function rearFasciaCoverageReport(report){
+ const geometries=report.geometries.filter(g=>!g.name.startsWith('Wheel_'));
+ const failures=[],samples=[];const forward=new THREE.Vector3(0,0,1);
+ for(let row=0;row<9;row++)for(let col=0;col<13;col++){
+  const x=-.78+1.56*col/12,y=.48+.31*row/8,ray=new THREE.Ray(new THREE.Vector3(x,y,-4),forward);let nearest=null;
+  for(const g of geometries)for(let i=0;i<g.indices.length;i+=3){
+   const hit=ray.intersectTriangle(g.points[g.indices[i]],g.points[g.indices[i+1]],g.points[g.indices[i+2]],true,new THREE.Vector3());
+   if(hit&&(!nearest||hit.z<nearest.z))nearest={z:hit.z,name:g.name,material:g.material};
+  }
+  const sample={x,y,hit:nearest};samples.push(sample);if(!nearest||nearest.z> -2.18)failures.push(sample);
+ }
+ return {sampled:samples.length,failures,samples};
 }

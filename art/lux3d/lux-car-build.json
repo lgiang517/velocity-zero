@@ -3,10 +3,10 @@
   "taskId": 3431485,
   "source": "art/lux3d/car-plated-source.glb",
   "blender": "5.2.1 LTS",
-  "method": "Lux lower body with 12mm solid repair and exact wheel/lamp cuts; manually rebuilt shared-boundary canopy/roof/four windows/pillars; low fitted bonnet; full black wheel housings",
+  "method": "Lux lower body with 12mm solid repair and exact wheel/front lamp cuts; shared-boundary canopy with wider rear C pillars and parcel shelf; smooth rear shell lofted from unchanged source boundary at z=-1.81m with closed fair deck/fascia, clean tail bar, merged diffuser trim and hollow exhaust; low fitted bonnet; full black wheel housings",
   "uniformScale": 0.96875,
-  "triangles": 73914,
-  "primitives": 48,
+  "triangles": 87460,
+  "primitives": 51,
   "materials": [
     "Graphite",
     "Paint",
@@ -16,14 +16,22 @@
     "Headlight",
     "Glass",
     "Tail",
+    "Rear window demister",
+    "Exhaust brushed alloy",
     "Wheel surface",
     "Window glass"
   ],
-  "glbBytes": 2787508,
+  "glbBytes": 3100944,
+  "rearRepair": {
+    "cutZ": -1.81,
+    "sourceBoundaryVertices": 218,
+    "loftSections": 16,
+    "retainsFrontBodyAndWheelPivots": true
+  },
   "wheelNodes": [
     {
       "children": [
-        36
+        39
       ],
       "extras": {
         "tireRadius": 0.39040625,
@@ -38,7 +46,7 @@
     },
     {
       "children": [
-        38
+        41
       ],
       "extras": {
         "tireRadius": 0.39040625,
@@ -53,7 +61,7 @@
     },
     {
       "children": [
-        40
+        43
       ],
       "extras": {
         "tireRadius": 0.38769375,
@@ -68,7 +76,7 @@
     },
     {
       "children": [
-        42
+        45
       ],
       "extras": {
         "tireRadius": 0.38769375,

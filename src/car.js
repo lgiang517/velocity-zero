@@ -6,7 +6,8 @@ import {createCabinFloor} from './cabin-floor.js';
 import {createCabinInterior} from './cabin-interior.js';
 import {createWheelSet} from './wheels.js';
 import {refineVehicleMaterial,setVehicleWetness} from './vehicle-materials.js';
-const CAR_MODEL='solstice-lux-gt.glb';
+// Version the public asset so an older cached GLB cannot survive a site update.
+const CAR_MODEL='solstice-lux-gt.glb?v=b2a005095271';
 let template,seatTemplate;
 export async function loadCarModels(){
  if(template)return;

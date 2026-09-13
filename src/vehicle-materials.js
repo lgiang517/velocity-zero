@@ -37,19 +37,19 @@ export function refineVehicleMaterial(material,{simple=false}={}){
  }else if(m.name==='Window glass'){
   // Thin automotive glazing preserves PBR reflection energy without an extra scene render.
   m.map=null;m.normalMap=null;m.roughnessMap=null;m.metalnessMap=null;m.alphaMap=null;
-  m.color.set('#b6cbc5');m.metalness=0;m.roughness=.045;m.envMapIntensity=.82;
-  m.transparent=true;m.opacity=.18;m.depthWrite=false;m.side=THREE.DoubleSide;m.forceSinglePass=true;
+  m.color.set('#6f838c');m.metalness=0;m.roughness=.065;m.envMapIntensity=1.15;
+  m.transparent=true;m.opacity=.64;m.depthWrite=false;m.side=THREE.DoubleSide;m.forceSinglePass=true;
   if(m.isMeshPhysicalMaterial){m.transmission=0;m.clearcoat=0;m.ior=1.52;}
   m.onBeforeCompile=shader=>{
    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`#include <opaque_fragment>
     float glazingNV = abs(dot(normal, normalize(vViewPosition)));
     float glazingFresnel = 0.0426 + 0.9574 * pow(1.0 - glazingNV, 5.0);
-    float glazingOpacity = 0.36 + 0.64 * glazingFresnel;
+    float glazingOpacity = 0.64 + 0.36 * glazingFresnel;
     vec3 glazingReflection = reflectedLight.directSpecular + reflectedLight.indirectSpecular;
-    gl_FragColor = vec4(glazingReflection / glazingOpacity + diffuseColor.rgb * 0.025, glazingOpacity);
+    gl_FragColor = vec4(glazingReflection / glazingOpacity + diffuseColor.rgb * 0.10, glazingOpacity);
    `);
   };
-  m.customProgramCacheKey=()=> 'vehicle-thin-glazing-v1';
+  m.customProgramCacheKey=()=> 'vehicle-thin-glazing-v2';
  }else if(m.name==='Glass'){
   m.color.set('#b8c5c8');m.metalness=.95;m.roughness=.075;m.envMapIntensity=1.0;
   if(m.isMeshPhysicalMaterial){m.transmission=0;m.clearcoat=0;m.ior=1.5;}

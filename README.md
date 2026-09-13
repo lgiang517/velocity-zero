@@ -43,6 +43,8 @@ npm run dev
 
 新增 Aholo Lux3D G1 生成的海岸岩体，由 Blender 5.2 制作 24,000 / 7,000 / 1,400 三角形三级资产；运行模型约 1.51 MB，共享两张 1K 贴图。地形分块剔除，树木和草丛按距离切换细节，车漆带随距离淡出的微表面变化。Three.js 高画质使用 4x HDR MSAA 与 2048 阴影，平衡画质使用 2x HDR MSAA 和桌面 1024 / 触屏 768 阴影，并缩小泛光缓冲；低画质关闭动态阴影与后期。升级与验收记录见 [Lux3D 图形升级](docs/lux3d-visual-upgrade-validation.md)。
 
+后窗比例、密封边、除雾线及封闭车尾的修复见 [后窗与车尾修复验收](docs/car-shell-repair-validation.md)。
+
 本轮真实生成资产、连续车窗、内饰和场景反射的来源与检查见 [Lux3D 车辆升级验收](docs/lux3d-car-validation.md)。此前程序化车辆的细化记录保留在 [车辆质感验收](docs/vehicle-finish-validation.md)。
 
 配乐采用 Kevin MacLeod 的《EDM Detection Mode》电子舞曲，每次开始驾驶仅播放一次五秒实录发动机启动轰鸣，行驶中没有持续油门或发动机轰鸣；另有倒计时与碰撞提示音；音乐采用流式播放，不必下载完整曲目；支持暂停续播、重赛归零和手机后台返回后的点击恢复。声音需用户点击后启动，署名见 [音乐说明](docs/music-credits.md)。
