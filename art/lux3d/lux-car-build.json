@@ -3,10 +3,10 @@
   "taskId": 3431485,
   "source": "art/lux3d/car-plated-source.glb",
   "blender": "5.2.1 LTS",
-  "method": "Lux lower body with 12mm solid repair and exact wheel/front lamp cuts; shared-boundary canopy with wider rear C pillars and parcel shelf; smooth rear shell lofted from unchanged source boundary at z=-1.81m with closed fair deck/fascia, clean tail bar, merged diffuser trim and hollow exhaust; low fitted bonnet; full black wheel housings",
+  "method": "Lux lower body with 12mm solid repair and exact wheel/front lamp cuts; shared-boundary canopy with wider rear C pillars and parcel shelf; single solid rear union with integrated deck and fascia, constrained shoulder fairing; fixed-window shoulder connection fused into isolated closed upper sides and shaped by monotonic vertical columns with continuous shared-point shoulder normals, clean tail bar and hollow exhaust; low fitted bonnet; full black wheel housings",
   "uniformScale": 0.96875,
-  "triangles": 87460,
-  "primitives": 51,
+  "triangles": 74268,
+  "primitives": 45,
   "materials": [
     "Graphite",
     "Paint",
@@ -18,21 +18,133 @@
     "Tail",
     "Rear window demister",
     "Exhaust brushed alloy",
-    "Wheel surface",
     "Window glass"
   ],
-  "glbBytes": 3100944,
+  "glbBytes": 2140024,
+  "assetSha256": "f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da",
   "rearRepair": {
-    "cutZ": -1.81,
-    "sourceBoundaryVertices": 218,
-    "loftSections": 16,
-    "retainsFrontBodyAndWheelPivots": true
+    "cutLowerZ": -1.55,
+    "reconstructionFrontZ": -1.35,
+    "fullCrossSectionZ": -1.53,
+    "crossSectionMarginM": 0.018,
+    "sourceBoundaryVertices": 177,
+    "outerBoundaryVertices": 128,
+    "loftSections": 38,
+    "singleExternalShell": true,
+    "separateDeckOrFascia": false,
+    "solidBooleanUnion": true,
+    "retainsFrontBodyAndWheelPivots": true,
+    "shoulderFairing": {
+      "vertices": 420,
+      "iterations": 42,
+      "factor": 0.72,
+      "maxDisplacementM": 0.12047545837822246,
+      "wheelArchLockM": 0.003
+    },
+    "shoulderConnection": {
+      "method": "outer Paint horizontal first hit; fixed window upper edge",
+      "fullContactZ": [
+        -0.8,
+        -1.7
+      ],
+      "transitionZ": [
+        -0.55,
+        -0.8
+      ],
+      "heightStartM": 0.902,
+      "heightEndM": 0.87,
+      "subdivisionPassLimit": 10,
+      "constructionBlenderEdgeGapLimitM": 0.0005,
+      "constructionBlenderMaxSampledEdgeGapM": 0.00019552856974769384,
+      "note": "curve-fit construction measurement before solid union; not an exported assembly-gap result",
+      "stationCount": 249
+    },
+    "shoulderAssembly": {
+      "method": "isolate closed upper side volumes, union inward shoulder solid, remove temporary caps and weld to retained body on the same cut planes",
+      "isolationGame": {
+        "rearOfZ": -0.5,
+        "aboveY": 0.82,
+        "outsideAbsX": 0.78
+      },
+      "stripThicknessM": 0.02,
+      "stripStartsZ": -0.55,
+      "seamWeldM": 0.000004,
+      "operands": [
+        {
+          "side": -1,
+          "operandBoundary": 0,
+          "operandNonmanifold": 0,
+          "unionBoundary": 0,
+          "unionNonmanifold": 0
+        },
+        {
+          "side": 1,
+          "operandBoundary": 0,
+          "operandNonmanifold": 0,
+          "unionBoundary": 0,
+          "unionNonmanifold": 0
+        }
+      ],
+      "independentRearStripRemoved": true
+    },
+    "finalShoulderShape": {
+      "columnMappingVertexCount": 7666,
+      "columnMappingMinDeltaM": -0.025480023878279856,
+      "columnMappingMaxDeltaM": 0.031975669860839884,
+      "footMappingVertexCount": 243,
+      "footMappingMaxDeltaM": 0.022373497486114502,
+      "rawBoundary": 11,
+      "rawNonmanifold": 40,
+      "localBoundary": 0,
+      "localNonmanifold": 0,
+      "method": "20mm local X/Z section refinement followed by strictly monotonic vertical column mapping; 0.82m lower cut fixed, 0.92m sill fixed, ends eased to retained body; final C-foot undercut compressed monotonically",
+      "sectionStepM": 0.02,
+      "lowerFixedY": 0.82,
+      "sillFixedY": 0.92,
+      "gameZRange": [
+        -0.5,
+        -1.87
+      ],
+      "inheritedCustomNormalsRemoved": true
+    },
+    "externalPaintRestoredFaces": 326,
+    "footMicroscopicCleanup": {
+      "before": [
+        30394,
+        36998
+      ],
+      "after": [
+        30393,
+        36997
+      ],
+      "rawBoundary": 11,
+      "rawNonmanifold": 40,
+      "localBoundary": 0,
+      "localNonmanifold": 0
+    },
+    "rearFacingExteriorCapPaint": {
+      "faces": 10,
+      "gameZRange": [
+        -1.66,
+        -1.73
+      ],
+      "method": "FrontSide visibility from rear and both rear quarters; exterior end-cap faces assigned Paint before shared-point normals"
+    },
+    "continuousShoulderNormals": {
+      "method": "analytic derivatives of the constrained shoulder profile, blended into retained body; coincident Paint corners use a common unit normal",
+      "affectedCorners": 23711,
+      "positionQuantizationM": 0.000001,
+      "normalMatchGroups": 6282
+    },
+    "runtimeWheelMeshesOmitted": [
+      "Wheel_FR generated mesh",
+      "Wheel_RR generated mesh",
+      "Wheel_FL generated mesh",
+      "Wheel_RL generated mesh"
+    ]
   },
   "wheelNodes": [
     {
-      "children": [
-        39
-      ],
       "extras": {
         "tireRadius": 0.39040625,
         "tireWidth": 0.2325
@@ -45,9 +157,6 @@
       ]
     },
     {
-      "children": [
-        41
-      ],
       "extras": {
         "tireRadius": 0.39040625,
         "tireWidth": 0.2325
@@ -60,9 +169,6 @@
       ]
     },
     {
-      "children": [
-        43
-      ],
       "extras": {
         "tireRadius": 0.38769375,
         "tireWidth": 0.2325
@@ -75,9 +181,6 @@
       ]
     },
     {
-      "children": [
-        45
-      ],
       "extras": {
         "tireRadius": 0.38769375,
         "tireWidth": 0.2325
@@ -94,5 +197,13 @@
     "Paint",
     "Cabin lining"
   ],
-  "preview": "output/car-detail/lux-continuous-{front,rear,side}.jpg"
+  "preview": "output/car-audit/final-{rear-quarter,rear-top,side}.jpg",
+  "sourceRebuildVerification": {
+    "source": "art/lux3d/car-plated-source.glb",
+    "positionDifferenceM": 0,
+    "triangles": 74268,
+    "primitives": 45,
+    "bytes": 2140024,
+    "passedAssetTests": 11
+  }
 }

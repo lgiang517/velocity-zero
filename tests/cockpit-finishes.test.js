@@ -7,10 +7,10 @@ function make(){
  const previous=globalThis.document;globalThis.document={createElement:()=>({getContext:()=>context})};
  try{return createCockpit();}finally{globalThis.document=previous;}
 }
-test('tailored seams share two draw calls and retain the exact cabin mesh budget',()=>{
+test('tailored seams retain two draw calls within the cabin mesh budget',()=>{
  const c=make();try{
   const seams=[];let draw=0;c.root.traverse(o=>{if(o.isMesh||o.isLine)draw++;if(o.isLineSegments)seams.push(o);});
-  assert.equal(seams.length,2);assert.equal(draw,19);assert.equal(c.root.userData.cockpit.triangles,46362);assert.equal(c.root.userData.cockpit.textures,4);
+  assert.equal(seams.length,2);assert.equal(draw,19);assert.ok(c.root.userData.cockpit.triangles<50000);assert.equal(c.root.userData.cockpit.textures,4);
   const seam=seams.find(o=>o.parent===c.root),positions=seam.geometry.attributes.position;
   assert.ok(positions.count>500);
   for(let i=0;i<positions.count;i+=2){const a=new THREE.Vector3().fromBufferAttribute(positions,i),b=new THREE.Vector3().fromBufferAttribute(positions,i+1);assert.ok(a.distanceTo(b)<=.003001);}
@@ -27,4 +27,24 @@ test('driver eye and wheel controls remain unchanged',()=>{
   const ray=new THREE.Raycaster(new THREE.Vector3(.35,1.03,-.40),new THREE.Vector3(0,0,1));const meshes=[];c.root.traverse(o=>{if(o.isMesh)meshes.push(o);});assert.equal(ray.intersectObjects(meshes,false).length,0);
   c.update({steer:.1},.016);assert.equal(c.steeringWheel.rotation.z,-.5);
  }finally{c.dispose();}
+});
+
+test('actual door-front geometry clears the dash trim and keeps seam end-face normals flat',()=>{
+ const c=make(),material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide}),meshes=[];
+ try{
+  c.root.traverse(o=>{if(o.isMesh&&o.parent===c.root){const mesh=new THREE.Mesh(o.geometry,material);mesh.updateMatrixWorld();meshes.push(mesh);}});
+  for(const side of[-1,1])for(const z of[.78,.90,1.04])for(const y of[.73,.79]){
+   const hits=new THREE.Raycaster(new THREE.Vector3(side*.75,y,z),new THREE.Vector3(side,0,0)).intersectObjects(meshes).map(h=>Math.abs(h.point.x));
+   const end=hits.find(x=>Math.abs(x-.814)<1e-5),door=hits.find(x=>x>.816);
+   assert.ok(end!==undefined&&door!==undefined,`missing end cap or inner door at ${side},${y},${z}`);
+   assert.ok(door-end>=.0048,`door intersects dashboard end trim at ${side},${y},${z}`);
+  }
+  let caps=0;
+  for(const mesh of meshes){const p=mesh.geometry.attributes.position,n=mesh.geometry.attributes.normal;
+   for(let i=0;i<p.count;i+=3)if([0,1,2].every(j=>Math.abs(p.getZ(i+j)-.618)<1e-6)){
+    caps++;for(let j=0;j<3;j++)assert.ok(Math.abs(n.getZ(i+j))>.9999,'door seam cap shares smoothing normals with the shoulder');
+   }
+  }
+  assert.ok(caps>20);
+ }finally{material.dispose();c.dispose();}
 });

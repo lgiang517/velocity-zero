@@ -2,12 +2,13 @@ import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {createCockpit} from './cockpit.js';
+import {DASH_HALF_WIDTH,dashFrontPoint,createWindscreenLandingGeometry} from './cabin-junctions.js';
 import {createCabinFloor} from './cabin-floor.js';
 import {createCabinInterior} from './cabin-interior.js';
 import {createWheelSet} from './wheels.js';
 import {refineVehicleMaterial,setVehicleWetness} from './vehicle-materials.js';
 // Version the public asset so an older cached GLB cannot survive a site update.
-const CAR_MODEL='solstice-lux-gt.glb?v=b2a005095271';
+const CAR_MODEL='solstice-lux-gt.glb?v=f36cc7ea3322';
 let template,seatTemplate;
 export async function loadCarModels(){
  if(template)return;
@@ -63,12 +64,22 @@ export function createCar(config,color='#e85824',simple=false){
  }
  cockpit.add(hood);
  if(isLux&&!simple){
-  // Close the sightline below the separate bonnet without raising the driver's eye.
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute([-.81,.825,.85,.81,.825,.85,-.81,.865,1.34,.81,.865,1.34,-.81,.70,.85,.81,.70,.85,-.81,.70,1.34,.81,.70,1.34],3));
-  geometry.setIndex([0,2,1,1,2,3,4,5,6,5,7,6,0,1,4,1,5,4,2,6,3,3,6,7,0,4,2,2,4,6,1,3,5,3,7,5]);geometry.computeVertexNormals();ownedGeo.push(geometry);
-  let leather=dark;cockpit.traverse(o=>{if(o.isMesh&&o.material?.name==='Fine grain warm leather')leather=o.material;});
-  const cowl=new THREE.Mesh(geometry,leather);cowl.name='Closed bonnet cowl';cockpit.add(cowl);
+  // Start at the same sampled front edge as the dash, never over the fascia.
+  hood.updateMatrixWorld(true);
+  const bounds=new THREE.Box3().setFromObject(hood),ray=new THREE.Raycaster();
+  const sampleBonnet=(x,z)=>{
+   // Outside the central bonnet partition, continue its edge height into the fixed
+   // scuttle wings. The actual rendered/variant-scaled bonnet supplies the height.
+   const sx=THREE.MathUtils.clamp(x,bounds.min.x+.002,bounds.max.x-.002);
+   ray.set(new THREE.Vector3(sx,bounds.max.y+.2,z),new THREE.Vector3(0,-1,0));
+   const hit=ray.intersectObject(hood,true)[0],height=(hit?.point.y??bounds.max.y)-.0002;
+   // The scuttle drops into the fixed corner outside the true bonnet partition;
+   // extending the clamped bonnet height sideways would expose a black raised tab.
+   const extent=x<0?-bounds.min.x:bounds.max.x,wing=THREE.MathUtils.smoothstep(Math.abs(x),extent-.020,DASH_HALF_WIDTH);
+   return THREE.MathUtils.lerp(height,dashFrontPoint(x).y+.006,wing);
+  };
+  const geometry=createWindscreenLandingGeometry(sampleBonnet);ownedGeo.push(geometry);
+  const cowl=new THREE.Mesh(geometry,dark);cowl.name='Windscreen landing';cockpit.add(cowl);
  }
 
  const stopLightMaterial=new THREE.MeshStandardMaterial({color:'#c9190d',emissive:'#ff0802',emissiveIntensity:3.2,toneMapped:false});

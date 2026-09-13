@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {DASH_HALF_WIDTH,DOOR_FRONT_SEAM,dashSectionPoint,dashTopAt,createDashShellGeometry,createDashEndCapGeometry} from './cabin-junctions.js';
 
 // Local +Z points through the windscreen; every instrument face points back at the driver.
 // The cabin is independent of the exterior materials hidden by car.setInterior().
@@ -69,21 +70,14 @@ export function createCockpit({simple=false}={}) {
  function cylinder(r,h,pos,m=satin,parent=root,segments=32){add(new THREE.CylinderGeometry(r,r,h,segments),m,pos,[Math.PI/2,0,0],parent);}
  function ring(rx,ry,pos,m=satin,parent=root,r=.0025){const pts=[];for(let i=0;i<48;i++){const a=i/48*Math.PI*2;pts.push([pos[0]+Math.cos(a)*rx,pos[1]+Math.sin(a)*ry,pos[2]]);}return tube(pts,r,m,parent,true,64);}
  // A continuous padded dash rolls from the windscreen shelf into the lower fascia.
- const profile=new THREE.CatmullRomCurve3([[1.20,.805],[1.045,.834],[.83,.822],[.635,.766],[.601,.686],[.676,.582],[.94,.567],[1.20,.66]].map(([z,y])=>new THREE.Vector3(0,y,z)),true,'catmullrom',.28);
- const rows=24,cols=48,positions=[],uv=[],indices=[];
- for(let i=0;i<=rows;i++){
-  const x=(i/rows-.5)*1.69,lift=.013*(1-(x/.845)**2),forward=.055*(Math.abs(x)/.845)**3;
-  for(let j=0;j<cols;j++){const p=profile.getPoint(j/cols);positions.push(x,p.y+lift,p.z+forward);uv.push(i/rows,j/cols);}
- }
- for(let i=0;i<rows;i++)for(let j=0;j<cols;j++){const a=i*cols+j,b=i*cols+(j+1)%cols,c=a+cols,d=b+cols;indices.push(a,c,b,b,c,d);}
- for(const end of[0,rows]){const c=positions.length/3;positions.push((end/rows-.5)*1.69,.72,.9);uv.push(.5,.5);for(let j=0;j<cols;j++){const a=end*cols+j,b=end*cols+(j+1)%cols;if(end===0)indices.push(c,a,b);else indices.push(c,b,a);}}
- const shell=new THREE.BufferGeometry();shell.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));shell.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));shell.setIndex(indices);shell.computeVertexNormals();add(shell,leather);
+ add(createDashShellGeometry(),leather);
+ for(const side of[-1,1])add(createDashEndCapGeometry(side),lower);
  // The seam, satin reveal and ambient strip follow the fascia instead of floating above it.
  for(const zOffset of[0,.009]){
-  const z=.927+zOffset;let surface=profile.getPoint(0);for(let i=1;i<=160;i++){const p=profile.getPoint(i/500);if(Math.abs(p.z-z)<Math.abs(surface.z-z))surface=p;}
-  const seam=[];for(let i=0;i<=80;i++){const x=(i/80-.5)*1.60;seam.push([x,surface.y+.013*(1-(x/.845)**2)+.0012,z+.055*(Math.abs(x)/.845)**3]);}line(seam);
+  const z=.927+zOffset;let surface=dashSectionPoint(0,0);for(let i=1;i<=160;i++){const p=dashSectionPoint(0,i/500);if(Math.abs(p.z-z)<Math.abs(surface.z-z))surface=p;}
+  const seam=[];for(let i=0;i<=80;i++){const x=(i/80-.5)*1.55;seam.push([x,surface.y-.013*(x/DASH_HALF_WIDTH)**2+.0012,z+.055*(Math.abs(x)/DASH_HALF_WIDTH)**3]);}line(seam);
  }
- const reveal=[];for(let i=0;i<=44;i++){const x=(i/44-.5)*1.64;reveal.push([x,.670+.014*(1-(x/.845)**2),.603+.055*(Math.abs(x)/.845)**3]);}
+ const reveal=[];for(let i=0;i<=44;i++){const x=(i/44-.5)*1.59;reveal.push([x,.670+.014*(1-(x/DASH_HALF_WIDTH)**2),.603+.055*(Math.abs(x)/DASH_HALF_WIDTH)**3]);}
  tube(reveal,.0043,graphite);tube(reveal.map(([x,y,z])=>[x,y-.008,z-.002]),.0015,softWarm);
  box([1.50,.080,.11],[0,.580,.648],lower,.022);
  // Instrument binnacle: a shallow hood is sunk into the upholstered fascia.
@@ -140,7 +134,8 @@ export function createCockpit({simple=false}={}) {
  }
  const windowUpper=z=>.73+.20*Math.abs(2*(z+1.32)/2.07-1)**2;
  const beltHeight=z=>canopyPoint(z,.985,-.017)[1];
- const doorShoulder=z=>beltHeight(z)-.047*THREE.MathUtils.smoothstep(z,.22,.55)*(1-THREE.MathUtils.smoothstep(z,.66,.94));
+ // Remove the shoulder dip. The fixed front quarter meets the sampled dash top.
+ const doorShoulder=z=>{const a=beltHeight(z),b=dashTopAt(DASH_HALF_WIDTH,z)*THREE.MathUtils.smoothstep(z,.68,.90),h=Math.max(.008-Math.abs(a-b),0)/.008;return Math.max(a,b)+h*h*.002;};
  // A closed solid loft gives every inner face the correct FrontSide winding.
  function solidLoft(source,chooseMaterial=()=>lower){
   const rings=source.map(r=>r.map(p=>p.slice())),n=rings[0].length;
@@ -153,9 +148,14 @@ export function createCockpit({simple=false}={}) {
    const a=i*n+j,b=i*n+(j+1)%n,c=a+n,d=b+n,p=rings[i][j],q=rings[i][(j+1)%n];
    face([a,b,c,b,d,c],chooseMaterial([(p[0]+q[0])/2,(p[1]+q[1])/2,(p[2]+q[2])/2]));
   }
-  for(const row of[0,rings.length-1])for(const tri of THREE.ShapeUtils.triangulateShape(rings[row].map(p=>new THREE.Vector2(p[0],p[1])),[])){
-   const a=rings[row][tri[0]],b=rings[row][tri[1]],c=rings[row][tri[2]],normal=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
-   const t=tri.map(i=>row*n+i);if((row===0&&normal>0)||(row>0&&normal<0))[t[1],t[2]]=[t[2],t[1]];face(t,lower);
+  for(const row of[0,rings.length-1]){
+   // Separate cap vertices keep the thin door assembly seam flat. Sharing these
+   // normals with the side wall produced triangular glints on the rounded shoulder.
+   const start=pos.length/3;for(let j=0;j<n;j++){pos.push(...rings[row][j]);tex.push(j/n,row/(rings.length-1));}
+   for(const tri of THREE.ShapeUtils.triangulateShape(rings[row].map(p=>new THREE.Vector2(p[0],p[1])),[])){
+    const a=rings[row][tri[0]],b=rings[row][tri[1]],c=rings[row][tri[2]],normal=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+    const t=tri.map(i=>start+i);if((row===0&&normal>0)||(row>0&&normal<0))[t[1],t[2]]=[t[2],t[1]];face(t,lower);
+   }
   }
   const complete=new THREE.BufferGeometry();complete.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));complete.setAttribute('uv',new THREE.Float32BufferAttribute(tex,2));complete.setIndex(all);complete.computeVertexNormals();
   for(const [m,index]of faces){const part=complete.clone();part.setIndex(index);add(part,m);}complete.dispose();
@@ -171,23 +171,31 @@ export function createCockpit({simple=false}={}) {
  solidLoft(roofRings);
  const header=[];for(let j=0;j<=32;j++)header.push(canopyPoint(-.115,windowUpper(-.115)*(j/16-1),-.031));tube(header,.009,rimLeather,root,false,40);
  for(const side of[-1,1]){
-  const rings=[];
-  for(let i=0;i<=42;i++){
-   const z=-1.32+2.56*i/42,top=doorShoulder(z),front=THREE.MathUtils.smoothstep(z,.53,.88),rear=1-THREE.MathUtils.smoothstep(z,-1.30,-1.07),fixed=Math.max(front,rear);
+  const sectionZ=[...Array.from({length:35},(_,i)=>-1.32+(DOOR_FRONT_SEAM-.002+1.32)*i/34),...Array.from({length:15},(_,i)=>DOOR_FRONT_SEAM+.002+(1.26-DOOR_FRONT_SEAM-.002)*i/14)];
+  const section=z=>{
+   const top=doorShoulder(z),front=THREE.MathUtils.smoothstep(z,.38,DOOR_FRONT_SEAM-.002),rear=1-THREE.MathUtils.smoothstep(z,-1.30,-1.07),fixed=Math.max(front,rear);
    const contour=[[.816,.23],[.800,.35],[.790,.50],[.800,top-(.165-.075*THREE.MathUtils.smoothstep(z,.15,.65))],[.811,top-.085],[.798,top-.046],[.790,top-.008],[.803,top+.003],[.861,top-.014],[.876,top-.083],[.884,.40],[.851,.23]];
    const cross=new THREE.CatmullRomCurve3(contour.map(([x,y],j)=>new THREE.Vector3(side*(j<8?THREE.MathUtils.lerp(x,j===0?.816:.819,fixed):x),y,z)),true,'catmullrom',.25);
-   const ring=[];for(let j=0;j<48;j++)ring.push(cross.getPoint(j/48).toArray());rings.push(ring);
-  }
-  solidLoft(rings,p=>p[1]>doorShoulder(p[2])-(.165-.075*THREE.MathUtils.smoothstep(p[2],.15,.65))&&p[2]<.76?leather:lower);
-  // A short fixed sail panel closes the lowered door shoulder beneath the A-pillar.
-  // It sits behind the leather card and keeps the original glass aperture unchanged.
-  const sail=[];for(let i=0;i<=16;i++){const z=.22+.73*i/16,lo=doorShoulder(z)-.026,hi=beltHeight(z)-.002;sail.push([[side*.820,lo,z],[side*.820,hi,z],[side*.871,hi,z],[side*.871,lo,z]]);}solidLoft(sail,()=>rimLeather);
+   return Array.from({length:48},(_,j)=>cross.getPoint(j/48).toArray());
+  };
+  const rings=sectionZ.map(section);
+  // Place upholstery stitching and the light guide on the actual faceted wall,
+  // including its front taper; a constant x left a short floating seam in the air.
+  const trimPoint=(z,y)=>{
+   const ring=section(z);let inner=Infinity;
+   for(let j=0;j<ring.length;j++){const a=ring[j],b=ring[(j+1)%ring.length];if(y>=Math.min(a[1],b[1])&&y<=Math.max(a[1],b[1])&&Math.abs(a[1]-b[1])>1e-8)inner=Math.min(inner,Math.abs(THREE.MathUtils.lerp(a[0],b[0],(y-a[1])/(b[1]-a[1]))));}
+   return [side*(inner-.001),y,z];
+  };
+  const doorMaterial=p=>p[1]>doorShoulder(p[2])-(.165-.075*THREE.MathUtils.smoothstep(p[2],.15,.65))?leather:lower;
+  solidLoft(rings.slice(0,35),doorMaterial);solidLoft(rings.slice(35),doorMaterial);
+  // Recessed rubber backs the real 4 mm door/fixed-quarter assembly seam.
+  box([.012,doorShoulder(DOOR_FRONT_SEAM)-.23,.004],[side*.842,(doorShoulder(DOOR_FRONT_SEAM)+.23)/2,DOOR_FRONT_SEAM],ventBlack,.001);
   // A continuous rubber belt seal sits on the rolled leather shoulder, never in mid-air.
   const seal=[],ambient=[],seam=[];
   for(let i=0;i<=42;i++){
-   const z=-1.30+2.22*i/42,fixed=Math.max(THREE.MathUtils.smoothstep(z,.53,.88),1-THREE.MathUtils.smoothstep(z,-1.30,-1.07)),sailMix=THREE.MathUtils.smoothstep(z,.22,.44)*(1-THREE.MathUtils.smoothstep(z,.85,.96)),x=THREE.MathUtils.lerp(THREE.MathUtils.lerp(.803,.819,fixed),.821,sailMix),top=doorShoulder(z);
-   seal.push([side*x,beltHeight(z)+.002,z]);
-   if(z<.52&&z> -1.06){ambient.push([side*.796,top-.070,z]);seam.push([side*.796,top-.033,z]);}
+   const z=-1.30+2.22*i/42,fixed=Math.max(THREE.MathUtils.smoothstep(z,.38,DOOR_FRONT_SEAM-.002),1-THREE.MathUtils.smoothstep(z,-1.30,-1.07)),sailMix=THREE.MathUtils.smoothstep(z,.22,.44)*(1-THREE.MathUtils.smoothstep(z,.85,.96)),x=THREE.MathUtils.lerp(THREE.MathUtils.lerp(.803,.819,fixed),.821,sailMix),top=doorShoulder(z);
+   seal.push([side*x,doorShoulder(z)+.002,z]);
+   if(z<.52&&z> -1.06){ambient.push(trimPoint(z,top-.070));seam.push(trimPoint(z,top-.033));}
   }
   tube(seal,.0048,ventBlack,root,false,58);tube(ambient,.0013,softWarm,root,false,34);line(seam);
   // This armrest is buried 5 cm into the side shell, with a deep pad and anchored pull.
@@ -211,12 +219,20 @@ export function createCockpit({simple=false}={}) {
   const extendedTop=new THREE.Vector3(...upper).add(new THREE.Vector3(...upper).sub(new THREE.Vector3(...middle)).normalize().multiplyScalar(.035)).add(new THREE.Vector3(0,.05,0)).toArray();
   const extendedFoot=new THREE.Vector3(...foot).add(new THREE.Vector3(...foot).sub(new THREE.Vector3(...middle)).normalize().multiplyScalar(.018)).toArray();
   const aPillar=[extendedTop,middle,extendedFoot];
-  // End caps reuse the actual six-sided tube rings; the header end is buried in the roof.
-  tube(aPillar,.0215,rimLeather,root,false,40,true);
-  tube(aPillar.map(([x,y,z])=>[x-side*.013,y-.001,z]),.0035,ventBlack,root,false,40);
+  // Molded trim broadens into the fixed corner; its last ring is buried below
+  // the shared dash/quarter top instead of showing an exposed cylindrical end.
+  const pillarCurve=new THREE.CatmullRomCurve3(aPillar.map(p=>new THREE.Vector3(...p)),false,'catmullrom',.35),pillarRings=[];
+  for(let i=0;i<=40;i++){
+   const t=i/40,p=pillarCurve.getPoint(t),flare=THREE.MathUtils.smoothstep(t,.65,1),tangent=pillarCurve.getTangent(t),lateral=new THREE.Vector3(side,0,0).addScaledVector(tangent,-side*tangent.x).normalize(),depth=new THREE.Vector3().crossVectors(tangent,lateral).normalize(),ring=[];
+   for(let j=0;j<12;j++){const a=j/12*Math.PI*2,q=p.clone().addScaledVector(lateral,Math.cos(a)*(.0215+.019*flare)).addScaledVector(depth,Math.sin(a)*(.0215-.010*flare));ring.push(q.toArray());}
+   pillarRings.push(ring);
+  }
+  const pp=[],pu=[],pi=[];for(let i=0;i<pillarRings.length;i++)for(let j=0;j<12;j++){pp.push(...pillarRings[i][j]);pu.push(j/12,i/40);}
+  for(let i=0;i<40;i++)for(let j=0;j<12;j++){const a=i*12+j,b=i*12+(j+1)%12,c=a+12,d=b+12;pi.push(a,b,c,b,d,c);}
+  const pillar=new THREE.BufferGeometry();pillar.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pillar.setAttribute('uv',new THREE.Float32BufferAttribute(pu,2));pillar.setIndex(pi);pillar.computeVertexNormals();add(pillar,rimLeather);
+  tube(aPillar.slice(0,2).map(([x,y,z])=>[x-side*.013,y-.001,z]),.0035,ventBlack,root,false,24);
   const rearTop=canopyPoint(-1.32,side*windowUpper(-1.32),-.024),rearBottom=[side*.819,beltHeight(-1.32),-1.32];tube([rearBottom,rearTop],.018,rimLeather,root,false,6,true);
-  // Fixed kick trim joins the A-pillar foot and the dashboard's closed outer end.
-  tube([foot,[side*.817,.797,1.055],[side*.838,.801,1.205]],.015,leather,root,false,22);
+
  }
  // Compact D rim with sculpted thumb grips, satin spokes, tactile keys and paddles.
  const rimCurve=tube([[0,.155,0],[.080,.136,0],[.136,.083,0],[.154,.01,0],[.139,-.065,0],[.098,-.119,0],[0,-.132,0],[-.098,-.119,0],[-.139,-.065,0],[-.154,.01,0],[-.136,.083,0],[-.080,.136,0]],.0165,rimLeather,steeringWheel,true,112);
