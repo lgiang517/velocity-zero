@@ -93,27 +93,43 @@ export function createLegacyCowlGeometry(assembly){
  }
  return solidSurface(rings,assembly.panelThickness.cowl*assembly.scale[1]);
 }
-/** A capped molding widens into a formed triangular foot on the common front quarter. */
+/** A short, rounded pillar boot nests into the fixed door-quarter upholstery. */
 export function createAPillarJunctionGeometry(assembly,side){
  const lower=new THREE.Vector3(...assembly.windscreenLower[side<0?0:assembly.windscreenLower.length-1]);
  const upper=new THREE.Vector3(...assembly.windscreenUpper[side<0?0:assembly.windscreenUpper.length-1]);
- const top=upper.clone().add(new THREE.Vector3(-side*.020,-.029,-.018)),foot=lower.clone().add(new THREE.Vector3(-side*.020,-.026,-.018));
- const middle=foot.clone().lerp(top,.55),curve=new THREE.CatmullRomCurve3([foot,middle,top],false,'catmullrom',.35),rings=[];
+ const top=upper.clone().add(new THREE.Vector3(-side*.020,-.029,-.018));
  const corner=assembly.fixedCorners[side<0?'left':'right'];
- const rear=Math.min(corner.doorFrontUpper[2]+.043,lower.z-.12),front=lower.z-.002,inner=Math.min(DASH_HALF_WIDTH-.014,Math.abs(lower.x)-.030),outer=Math.max(DASH_HALF_WIDTH+.020,Math.abs(lower.x)+.003);
- const rearInner=new THREE.Vector3(side*inner,corner.doorFrontUpper[1]-.002,rear),rearOuter=new THREE.Vector3(side*outer,corner.doorFrontUpper[1]-.006,rear);
- const frontOuter=new THREE.Vector3(side*outer,lower.y-assembly.panelThickness.cowl,front),frontInner=new THREE.Vector3(side*inner,sampleAssemblyChain(assembly.windscreenInnerLower,side*inner).y-.007,front);
- const corners=[rearInner,rearOuter,frontOuter,frontInner],base=[];
- for(let i=0;i<4;i++){base.push(corners[i]);base.push(corners[i].clone().lerp(corners[(i+1)%4],.5));}
- for(let i=0;i<=32;i++){const t=i/32,p=curve.getPoint(t),tangent=curve.getTangent(t),lateral=new THREE.Vector3(side,0,0).addScaledVector(tangent,-side*tangent.x).normalize(),depth=new THREE.Vector3().crossVectors(tangent,lateral).normalize(),ring=[];
-  for(let j=0;j<8;j++){const a=side*(.375-j/8)*Math.PI*2,q=p.clone().addScaledVector(lateral,Math.cos(a)*.025).addScaledVector(depth,Math.sin(a)*.010);if(t<.12)q.lerp(base[j].clone().addScaledVector(tangent,t*.05),1-THREE.MathUtils.smoothstep(t,0,.12));ring.push(q);}
+ // The previous 140 mm-long rectangular fan bent back over the door top.
+ // This closed oval foot sits below the formed quarter shoulder instead.
+ const foot=lower.clone().add(new THREE.Vector3(-side*.020,-.048,-.029));
+ foot.y=Math.max(corner.doorFrontUpper[1]+.020,foot.y);
+ const neck=lower.clone().add(new THREE.Vector3(-side*.020,-.016,-.014));
+ const middle=neck.clone().lerp(top,.52);
+ const curve=new THREE.CatmullRomCurve3([foot,neck,middle,top],false,'centripetal'),rings=[];
+ const radial=16,rows=40;
+ for(let i=0;i<=rows;i++){
+  const t=i/rows,p=curve.getPoint(t),tangent=curve.getTangent(t);
+  const lateral=new THREE.Vector3(side,0,0).addScaledVector(tangent,-side*tangent.x).normalize();
+  const depth=new THREE.Vector3().crossVectors(tangent,lateral).normalize(),ring=[];
+  const flare=1-THREE.MathUtils.smoothstep(t,0,.22);
+  for(let j=0;j<radial;j++){
+   const angle=j/radial*Math.PI*2;
+   ring.push(p.clone().addScaledVector(lateral,Math.cos(angle)*(.024+.009*flare)).addScaledVector(depth,Math.sin(angle)*(.010+.004*flare)));
+  }
   rings.push(ring);
  }
- const positions=[],uv=[],indices=[];for(let i=0;i<rings.length;i++)for(let j=0;j<8;j++){positions.push(...rings[i][j]);uv.push(j/8,i/32);}
- for(let i=0;i<32;i++)for(let j=0;j<8;j++){const a=i*8+j,b=i*8+(j+1)%8,c=a+8,d=b+8;indices.push(a,b,c,b,d,c);}
- for(const end of[0,32]){const center=rings[end].reduce((sum,p)=>sum.add(p),new THREE.Vector3()).divideScalar(8),c=positions.length/3;positions.push(...center);uv.push(.5,.5);for(let j=0;j<8;j++){const a=end*8+j,b=end*8+(j+1)%8;indices.push(...(end===0?[c,b,a]:[c,a,b]));}}
- // Signed volume gives consistent outward winding for mirrored closed parts.
- let volume=0;for(let i=0;i<indices.length;i+=3){const a=new THREE.Vector3().fromArray(positions,indices[i]*3),b=new THREE.Vector3().fromArray(positions,indices[i+1]*3),c=new THREE.Vector3().fromArray(positions,indices[i+2]*3);volume+=a.dot(b.cross(c));}
+ const positions=[],uv=[],indices=[];
+ for(let i=0;i<rings.length;i++)for(let j=0;j<radial;j++){positions.push(...rings[i][j]);uv.push(j/radial,i/rows);}
+ for(let i=0;i<rows;i++)for(let j=0;j<radial;j++){
+  const a=i*radial+j,b=i*radial+(j+1)%radial,c=a+radial,d=b+radial;indices.push(a,b,c,b,d,c);
+ }
+ for(const end of[0,rows]){
+  const center=rings[end].reduce((sum,p)=>sum.add(p),new THREE.Vector3()).divideScalar(radial),c=positions.length/3;
+  positions.push(...center);uv.push(.5,.5);
+  for(let j=0;j<radial;j++){const a=end*radial+j,b=end*radial+(j+1)%radial;indices.push(...(end===0?[c,b,a]:[c,a,b]));}
+ }
+ let volume=0;
+ for(let i=0;i<indices.length;i+=3){const a=new THREE.Vector3().fromArray(positions,indices[i]*3),b=new THREE.Vector3().fromArray(positions,indices[i+1]*3),c=new THREE.Vector3().fromArray(positions,indices[i+2]*3);volume+=a.dot(b.cross(c));}
  if(volume<0)for(let i=0;i<indices.length;i+=3)[indices[i+1],indices[i+2]]=[indices[i+2],indices[i+1]];
- const g=geometry(positions,uv,indices);g.userData.junction={closed:true,foot:foot.toArray(),top:top.toArray(),base:base.map(p=>p.toArray())};return g;
+ const g=geometry(positions,uv,indices);g.userData.junction={closed:true,foot:foot.toArray(),top:top.toArray(),base:rings[0].map(p=>p.toArray())};return g;
 }

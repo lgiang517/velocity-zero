@@ -6,6 +6,8 @@ import bpy,bmesh,math,json,struct,hashlib,argparse,sys
 from pathlib import Path
 from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'tools'))
+from vehicle_surfaces import smooth,width,cabwidth,crown,top,shoulder_x,side_x,shoulder_height,deform,top_point,side_point,back_point,surface_normal,REAR_Z,CABIN_Z,SIDE_Z,station
 def gp(p):return (p[0],-p[2],p[1])
 def mat(name,color,metal=0,rough=.4):
  m=bpy.data.materials.get(name) or bpy.data.materials.new(name);m.use_nodes=True;m.diffuse_color=(*color,1)
@@ -41,25 +43,6 @@ def tube(name,points,r,material,segments=8):
  for j in range(len(points)-1):
   for i in range(segments):a=j*segments+i;b=j*segments+(i+1)%segments;fs.append((a,b,b+segments,a+segments))
  fs.extend([tuple(reversed(range(segments))),tuple((len(points)-1)*segments+i for i in range(segments))]);return mesh(name,vs,fs,material)
-def smooth(t):return t*t*(3-2*t)
-def width(z):
- # Broad rear haunch, pinched door waist and front wheel shoulder; low-frequency shape only.
- return 1.01+.028*math.exp(-((z+1.35)/.65)**2)+.022*math.exp(-((z-1.35)/.55)**2)-.035*math.exp(-(z/.68)**2)-.055*smooth(max(0,(abs(z)-2.10)/.20))
-def cabwidth(z):return .84-(z+1.7)/2.5*.01
-def crown(z):
- if z<=-1.7:return .955-.13*((-1.7-z)/.60)**1.45
- if z<=.8:return .955
- return .955-.18*((z-.8)/1.5)**1.55
-
-def side_x(y,z):
- u=(y-.205)/(top(width(z),z)-.205)
- return width(z)-.085*(1-u)**2+.023*math.sin(math.pi*u)-.025*math.exp(-((u-.38)/.23)**2)*math.exp(-(z/.95)**4)
-
-def top(x,z):
- # At the rear window this is EXACTLY the retained window's transverse boundary.
- a=abs(x);w=cabwidth(max(-1.7,min(.8,z)));base=crown(z)
- if a<=w:return base-.035*(a/w)**2
- q=(a-w)/(width(z)-w);return base-.035-.083333*(a-w)-.115*q*q
 
 def main():
  parser=argparse.ArgumentParser();parser.add_argument('--out-dir',default=str(ROOT/'output/vehicle-rebuild/candidate'));parser.add_argument('--baseline',default=str(ROOT/'art/lux3d/aholo-gt-package.glb'));args=parser.parse_args(sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else [])
@@ -72,52 +55,51 @@ def main():
  package=ROOT/'art/lux3d/aholo-gt-package.glb'
  if not package.exists():
   bpy.ops.export_scene.gltf(filepath=str(package),export_format='GLB',export_yup=True,export_extras=True)
+ # Updated real-GT fitment: preserve wheelbase/track, match contact height to radius.
+ for o in bpy.context.scene.objects:
+  if o.name in ['Wheel_FL','Wheel_FR','Wheel_RL','Wheel_RR']:
+   front=o.name in ['Wheel_FL','Wheel_FR'];radius=.36295 if front else .3612
+   o['tireRadius']=radius;o['tireWidth']=.275 if front else .315;o.location.z=radius+.004
  paint=mat('Paint',(.62,.19,.055),.62,.25);paint.node_tree.nodes['Principled BSDF'].inputs['Coat Weight'].default_value=1
  dark=mat('Graphite',(.016,.02,.024),.2,.38);lining=mat('Cabin lining',(.012,.018,.022),0,.75);alloy=mat('Exhaust brushed alloy',(.34,.38,.41),.94,.24);lamp=mat('Tail',(.48,.004,.002),.2,.18)
  lamp.node_tree.nodes['Principled BSDF'].inputs['Emission Color'].default_value=(.48,.002,.001,1);lamp.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value=1.2
  led=mat('Headlight',(.72,.83,.91),.2,.18);led.node_tree.nodes['Principled BSDF'].inputs['Emission Color'].default_value=(.72,.83,.91,1);led.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value=1.3
- # Open-backed aerodynamic mirror shell, rear-facing inset glass and a real seal.
- mirrorGlass=mat('Glass',(.66,.73,.77),.95,.075)
- for side,label in [(-1,'right'),(1,'left')]:
-  center=Vector((side*1.005,.992,.245));normal=Vector((-side*.4,.03,-.916)).normalized();u=Vector((.916,0,-side*.4)).normalized();v=normal.cross(u).normalized()
-  if v.y<0:v=-v
-  def mp(a,b,d):return tuple(center+u*a+v*b+normal*d)
-  n=40;vs=[];fs=[]
-  for d,sx,sy in [(0,1,1),(-.025,1.035,1.02),(-.070,.92,.88),(-.105,.60,.62),(-.119,.12,.15)]:
-   for i in range(n):a=2*math.pi*i/n;vs.append(mp(.125*sx*math.cos(a),.054*sy*math.sin(a),d))
-  for j in range(4):
-   for i in range(n):fs.append((j*n+i,j*n+(i+1)%n,(j+1)*n+(i+1)%n,(j+1)*n+i))
-  fs.append(tuple(4*n+i for i in range(n)))
-  o=mesh('Mirror shell '+label,vs,fs,paint,None,.004);o['driverVisibleExterior']=True
-  # Rounded perimeter ring stays behind and outside the actual optical face.
-  pts=[mp(.119*math.cos(2*math.pi*i/n),.050*math.sin(2*math.pi*i/n),.003) for i in range(n+1)]
-  o=tube('Mirror seal '+label,pts,.004,dark,6);o['driverVisibleExterior']=True
-  vs=[mp(0,0,.006)]+[mp(.114*math.cos(2*math.pi*i/n),.046*math.sin(2*math.pi*i/n),.005) for i in range(n)]
-  o=mesh('Mirror reflective lens '+label,vs,[(0,i+1,(i+1)%n+1) for i in range(n)],mirrorGlass,tuple(normal),.002);o['driverVisibleExterior']=True
-  o=tube('Mirror support '+label,[(side*.837,.939,.402),(side*.90,.957,.359),(side*.973,.973,.314)],.020,dark,10);o['driverVisibleExterior']=True
-  o=box('Mirror mount '+label,(side*.832,.944,.400),(.028,.048,.079),dark,.009);o['driverVisibleExterior']=True
-  o=mesh('Mirror sail '+label,[(side*.839,.841,.15),(side*.833,.841,.67),(side*.815,1.010,.64)],[(0,1,2)],dark,(side,0,0),.008);o['driverVisibleExterior']=True
-  bpy.ops.object.select_all(action='DESELECT')
-  trim=[bpy.data.objects[prefix+label] for prefix in ['Mirror seal ','Mirror support ','Mirror mount ','Mirror sail ']]
-  for o in trim:o.select_set(True)
-  bpy.context.view_layer.objects.active=trim[0];bpy.ops.object.join();bpy.context.object.name='Mirror trim '+label
+ from vehicle_mirrors import build_mirrors
+ build_mirrors(mesh,tube,box,mat)
  # Preserve actual window rows, only their shared connection is rebuilt.
  def deck_x(u,z):
-  i=u*76;w=width(z)
-  if i<14:return -w+(w-.84)*i/14
-  if i<=62:return -.84+1.68*(i-14)/48
-  return .84+(w-.84)*(i-62)/14
- rear=grid('Rear deck',lambda u,v:(deck_x(u,-1.7-.60*v),top(deck_x(u,-1.7-.60*v),-1.7-.60*v),-1.7-.60*v),76,32,paint,(0,1,0),.012)
+  i=u*96;w=width(z)
+  if i<24:return -shoulder_x(1-i/24,z)
+  if i<=72:return -.84+1.68*(i-24)/48
+  return shoulder_x((i-72)/24,z)
+ rear=grid('Rear deck',lambda u,v:(deck_x(u,station(REAR_Z,1-v)),top(deck_x(u,station(REAR_Z,1-v)),station(REAR_Z,1-v)),station(REAR_Z,1-v)),96,40,paint,(0,1,0),.012)
  # The analytic edge is shared with the retained window. Independent exported-mesh
  # checks measure tessellation error along that edge, rather than trusting this formula.
  for side,label in [(-1,'left'),(1,'right')]:
-  grid('Canopy sill '+label,lambda u,v,s=side:(s*(cabwidth(-1.7+2.5*v)+(width(-1.7+2.5*v)-cabwidth(-1.7+2.5*v))*u),top(cabwidth(-1.7+2.5*v)+(width(-1.7+2.5*v)-cabwidth(-1.7+2.5*v))*u,-1.7+2.5*v),-1.7+2.5*v),14,64,paint,(0,1,0),.012)
+  grid('Canopy sill '+label,lambda u,v,s=side:(s*shoulder_x(u,station(CABIN_Z,v)),top(shoulder_x(u,station(CABIN_Z,v)),station(CABIN_Z,v)),station(CABIN_Z,v)),24,80,paint,(0,1,0),.012)
   # Door and fender skin share a single fair side function, with genuine wheel openings.
   def sidept(u,v,s=side):
-   z=-2.3+4.6*v;yTop=top(width(z),z);y=.205+(yTop-.205)*u;x=side_x(y,z)
+   z=station(SIDE_Z,v);yTop=top(width(z),z);y=.205+(yTop-.205)*(.5-.5*math.cos(math.pi*u));x=side_x(y,z)
    return(s*x,y,z)
-  body=grid('Body side '+label,sidept,12,104,paint,(side,0,0),.012)
-  for axz,cy,r in [(1.38821876,.39701805,.412),(-1.33881247,.39023679,.410)]:
+  # Extra vertical stations only where the final bumper curvature needs them.
+  vs=[];fs=[];rings=[]
+  for z in SIDE_Z:
+   h=shoulder_height(z);values=[.5-.5*math.cos(math.pi*i/20) for i in range(21)]
+   if z< -2.075:values+= [(y-.205)/(h-.205) for y in [.352+.008*i for i in range(29)] if .205<y<h]
+   values=sorted(set(round(v,8) for v in values));row=[]
+   for t in values:
+    y=.205+(h-.205)*t;row.append((len(vs),t));vs.append((side*side_x(y,z),y,z))
+   if rings:
+    prev=rings[-1];i=j=0
+    while i<len(prev)-1 or j<len(row)-1:
+     ta=prev[i+1][1] if i<len(prev)-1 else 2;tb=row[j+1][1] if j<len(row)-1 else 2
+     a=prev[i][0];b=row[j][0]
+     if abs(ta-tb)<1e-7:fs.append((a,prev[i+1][0],row[j+1][0],b));i+=1;j+=1
+     elif ta<tb:fs.append((a,prev[i+1][0],b));i+=1
+     else:fs.append((a,row[j+1][0],b));j+=1
+   rings.append(row)
+  body=mesh('Body side '+label,vs,fs,paint,(side,0,0),.012)
+  for axz,cy,r in [(1.38821876,.36695,.388),(-1.33881247,.3652,.388)]:
    bpy.ops.mesh.primitive_cylinder_add(vertices=96,radius=r,depth=.70,location=gp((side*.93,cy,axz)),rotation=(0,math.pi/2,0));c=bpy.context.object;boolean(body,c);bpy.data.objects.remove(c,do_unlink=True)
    # Restrained rolled wheel arch lip: radial highlight follows the true wheel opening.
    pts=[]
@@ -169,7 +151,7 @@ def main():
  # The same wheel cutter also trims the top shoulder skin, so the rolled arch
  # follows a real opening through the complete fender rather than a side-only cut.
  for side,label in [(-1,'left'),(1,'right')]:
-  for axz,cy,r in [(1.38821876,.39701805,.412),(-1.33881247,.39023679,.410)]:
+  for axz,cy,r in [(1.38821876,.36695,.388),(-1.33881247,.3652,.388)]:
    bpy.ops.mesh.primitive_cylinder_add(vertices=96,radius=r,depth=.70,location=gp((side*.93,cy,axz)),rotation=(0,math.pi/2,0));c=bpy.context.object
    targets=[bpy.data.objects['Driver_front_structure']] if axz>0 else [bpy.data.objects['Canopy sill '+label]]
    for o in targets:boolean(o,c)
@@ -177,7 +159,7 @@ def main():
  # Matched wheel-house liners replace the narrower retained source semicylinders.
  # Their outer return is behind the physical arch edge, not outside the door skin.
  for side,label in [(-1,'left'),(1,'right')]:
-  for axz,cy,r in [(1.38821876,.39701805,.414),(-1.33881247,.39023679,.412)]:
+  for axz,cy,r in [(1.38821876,.36695,.390),(-1.33881247,.3652,.390)]:
    def liner_pt(u,v,s=side,az=axz,ay=cy,ar=r):
     a=-.50+(math.pi+1.0)*v;z=az+ar*math.cos(a);y=ay+ar*math.sin(a)
     if y<=top(width(z),z):outer=side_x(y,z)-.014
@@ -197,7 +179,21 @@ def main():
  # Front/rear bumper surfaces are controlled closed solids with physically subtracted apertures.
  def fascia(name,z,material):
   sign=1 if z>0 else -1
-  o=grid(name,lambda u,v:((2*u-1)*width(z),.205+(top((2*u-1)*width(z),z)-(.13 if z>0 else 0)-.205)*v,z-sign*.045*(2*u-1)**4),96,24,material,(0,0,sign),.035)
+  vals=[.5-.5*math.cos(math.pi*i/48) for i in range(49)]
+  if z<0:
+   original=vals[:];span=shoulder_height(z)-.205
+   for a,b in zip(original,original[1:]):
+    if .35<.205+(a+b)/2*span<.59:
+     parts=max(1,math.ceil((b-a)*span/.008))
+     vals.extend(a+(b-a)*i/parts for i in range(1,parts))
+   vals.sort()
+  def point(u,v):
+   if z<0:u=.5+.5*math.sin((u-.5)*math.pi);v=station(vals,v)
+   yy=.205+(shoulder_height(z)-.205)*v
+   x=(2*u-1)*(side_x(yy,z) if z<0 else width(z))
+   y=.205+(top((2*u-1)*width(z),z)-(.13 if z>0 else 0)-.205)*v
+   return (x,y,z)
+  o=grid(name,point,96,len(vals)-1 if z<0 else 24,material,(0,0,sign),.035)
   return o
  back=fascia('Rear bumper',-2.30,paint);face=fascia('Front bumper',2.30,paint)
  # Bumper inset trim uses a real opening at the exhaust axes.
@@ -215,10 +211,9 @@ def main():
    for i in range(n):fs.append((j*n+i,j*n+(i+1)%n,((j+1)%4)*n+(i+1)%n,((j+1)%4)*n+i))
   mesh('Exhaust metal '+label,vs,fs,alloy)
   mesh('Exhaust interior '+label,[(cx,cy,-2.13)]+[(cx+.054*math.cos(i*2*math.pi/n),cy+.054*math.sin(i*2*math.pi/n),-2.13) for i in range(n)],[(0,i+1,(i+1)%n+1) for i in range(n)],lining,(0,0,-1))
- # One thick enclosed tail lens with black gasket and housing.
- grid('Tail lamp recessed housing',lambda u,v:((2*u-1)*.92,.773-.065*(2*u-1)**4+(v-.5)*.042,-2.316),64,4,dark,(0,0,-1),.024)
- grid('Rear continuous Tail',lambda u,v:((2*u-1)*.895,.779-.060*(2*u-1)**4+(v-.5)*.012,-2.338),64,2,lamp,(0,0,-1),.012)
- for x in [-.43,-.22,0,.22,.43]:box('Rear diffuser fin '+str(x),(x,.255,-2.31),(.012,.10,.12),dark,.004)
+ # Tail assembly is built after the common skin mapping, from its actual surface.
+
+ for x in [-.43,-.22,0,.22,.43]:box('Rear diffuser fin '+str(x),(x,.258,-2.31),(.010,.055,.09),dark,.004)
  # Recessed front grille cavity; actual bumper opening, grille behind and clean rim.
  cutter=box('Grille cutter',(0,.455,2.30),(1.22,.23,.35),dark,.065);boolean(face,cutter);bpy.data.objects.remove(cutter,do_unlink=True)
  box('Front grille cavity',(0,.455,2.20),(1.21,.22,.08),lining,.055)
@@ -235,24 +230,82 @@ def main():
  # Existing physical plate letters and COLOR_0 remain untouched; shift all components together.
  for o in bpy.context.scene.objects:
   if o.name.startswith('Front physical '):o.location+=Vector(gp((0,0,-.012)))
-  if o.name.startswith('Rear physical '):o.location+=Vector(gp((0,.015,.019)))
- # The nose wraps around the car in plan and tucks inward below the bumper belt.
- # One coordinate transformation is shared by skin, lamp, grille and lip vertices.
+  if o.name.startswith('Rear physical '):o.location+=Vector(gp((0,.015,.048)))
+ # Map every attached part consistently; outer skin normals come from the
+ # common surface, independent of each solid panel's return-wall normals.
  for o in bpy.context.scene.objects:
   if o.type!='MESH' or o.name.startswith(('Front physical ','Rear physical ','Window ','Mirror ','Wheel_','Black wheel housing','Driver cowl side','Driver_cowl')):continue
+  role='top' if o.name.startswith(('Rear deck','Canopy sill','Driver_hood','Driver_front_structure')) else 'side' if o.name.startswith(('Body side','Driver front side')) else 'back' if o.name=='Rear bumper' else None
+  outer={}
   for v in o.data.vertices:
    world=o.matrix_world@v.co;x,y,z=world.x,world.z,-world.y
-   if z>1.90:
-    t=min(1,(z-1.90)/.40);offset=.18*smooth(t)*(abs(x)/1.04)**2+.045*smooth(t)*max(0,(.42-y)/.22)**2
-    world.y+=offset;v.co=o.matrix_world.inverted()@world
-   elif z<-2.05:
-    t=min(1,(-z-2.05)/.25);world.y-=.10*smooth(t)*(abs(x)/1.04)**2;v.co=o.matrix_world.inverted()@world
+   if role=='top' and abs(y-top(x,z))<.00035:
+    xx=math.copysign(min(abs(x),width(z)-.00001),x);zz=max(-2.29999,z)
+    outer[v.index]=surface_normal(top_point,xx,zz,(0,1,0))
+   elif role=='side' and abs(abs(x)-side_x(y,z))<.00035:
+    sg=1 if x>0 else -1;yy=min(y,shoulder_height(z)-.00001);zz=max(-2.29999,z)
+    outer[v.index]=surface_normal(lambda a,b:side_point(a,b,sg),yy,zz,(sg,0,0))
+   elif role=='back' and abs(z+2.30)<.00035:
+    xx=math.copysign(min(abs(x),side_x(y,-2.3)-.00001),x);yy=min(y,top(x,-2.3)-.00001)
+    outer[v.index]=surface_normal(back_point,xx,yy,(0,0,-1))
+   world=Vector(gp(deform((x,y,z))));v.co=o.matrix_world.inverted()@world
+  o.data.update()
+  # Cut surfaces remain planar. Only actual outer loops get analytical normals.
+  if outer:
+   custom=[None]*len(o.data.loops)
+   for poly in o.data.polygons:
+    for li in poly.loop_indices:
+     vi=o.data.loops[li].vertex_index;n=Vector(gp(outer[vi])) if vi in outer else poly.normal
+     n=o.matrix_world.to_3x3().transposed()@n if vi in outer else n
+     if n.dot(poly.normal)<.25:n=poly.normal
+     custom[li]=tuple(n.normalized())
+   o.data.normals_split_custom_set(custom)
+ # Lamp points follow the true final bumper surface and its outward normal.
+ def lamp_pt(u,v,offset,span=.916,height=.032):
+  x=(2*u-1)*span;y=.758-.033*(2*u-1)**4+(v-.5)*height
+  p=Vector(back_point(x,y));n=Vector(surface_normal(back_point,x,y,(0,0,-1)))
+  return tuple(p+n*offset)
+ grid('Tail lamp recessed housing',lambda u,v:lamp_pt(u,v,.003),96,4,dark,(0,0,-1),.008)
+ grid('Rear continuous Tail',lambda u,v:lamp_pt(u,v,.009,.904,.011),96,2,lamp,(0,0,-1),.004)
  # Declare shared exterior boundaries in canonical game XYZ, consumed by Three.js.
  transverse=lambda w,z,fn:[[w*(i/16-1),fn(w*(i/16-1)),z] for i in range(33)]
- declaration={'version':1,'coordinateSpace':'vehicle-local-game-xyz','units':'m','windscreenLower':transverse(.83,.8,lambda x:.955-.035*(x/.83)**2),'windscreenUpper':transverse(.68,.035,lambda x:1.37-.035*(x/.68)**2),'hoodRear':transverse(hw,.84,lambda x:top(x,.84)),'rearWindowLower':transverse(.84,-1.70,lambda x:.955-.035*(x/.84)**2),'panelThickness':{'hood':.008,'body':.012,'cowl':.014},'roles':{'Driver_hood':{'driverVisibleExterior':True},'Driver_front_structure':{'driverVisibleExterior':True},'Driver_cowl':{'driverVisibleExterior':True},'Driver front side left':{'driverVisibleExterior':True},'Driver front side right':{'driverVisibleExterior':True},'Window windscreen':{'driverVisibleExterior':True},'Window left':{'driverVisibleExterior':True},'Window right':{'driverVisibleExterior':True},'exhaustInterior':['Exhaust interior left','Exhaust interior right']},'exhaustAxes':[{'center':[s*.68,.355,-2.355+.10*(.68/1.04)**2],'direction':[0,0,1]} for s in [-1,1]],'fixedCorners':{}}
+ declaration={'version':1,'wheelFitmentVersion':2,'coordinateSpace':'vehicle-local-game-xyz','units':'m','windscreenLower':transverse(.83,.8,lambda x:.955-.035*(x/.83)**2),'windscreenUpper':transverse(.68,.035,lambda x:1.37-.035*(x/.68)**2),'hoodRear':transverse(hw,.84,lambda x:top(x,.84)),'rearWindowLower':transverse(.84,-1.70,lambda x:.955-.035*(x/.84)**2),'panelThickness':{'hood':.008,'body':.012,'cowl':.014},'roles':{'Driver_hood':{'driverVisibleExterior':True},'Driver_front_structure':{'driverVisibleExterior':True},'Driver_cowl':{'driverVisibleExterior':True},'Driver front side left':{'driverVisibleExterior':True},'Driver front side right':{'driverVisibleExterior':True},'Window windscreen':{'driverVisibleExterior':True},'Window left':{'driverVisibleExterior':True},'Window right':{'driverVisibleExterior':True},'exhaustInterior':['Exhaust interior left','Exhaust interior right']},'exhaustAxes':[{'center':list(deform((s*.68,.355,-2.355))),'direction':[0,0,1]} for s in [-1,1]],'fixedCorners':{}}
  for label,s in [('left',-1),('right',1)]:declaration['fixedCorners'][label]={'aPillarFoot':[s*.83,.92,.8],'cowlOuter':[s*.83,.92,.8],'doorFrontUpper':[s*.835,.852,.622],'doorFrontLower':[s*.835,.23,.622]}
  for side in [-1,1]:
-  anchor=bpy.data.objects.new('Exhaust_L' if side>0 else 'Exhaust_R',None);bpy.context.collection.objects.link(anchor);anchor.location=gp((side*.68,.355,-2.355+.10*(.68/1.04)**2))
+  anchor=bpy.data.objects.new('Exhaust_L' if side>0 else 'Exhaust_R',None);bpy.context.collection.objects.link(anchor);anchor.location=gp(deform((side*.68,.355,-2.355)))
+ def seam_sample(point,funA,funB):
+  def guide(fun,d):
+   # Parameters are scaled to the requested physical distance from the edge.
+   ref=Vector(point);lo=0.;hi=.04
+   for _ in range(28):
+    t=(lo+hi)/2
+    if (Vector(fun(t))-ref).length<d:lo=t
+    else:hi=t
+   return list(fun((lo+hi)/2))
+  return {'point':list(point),'a1':guide(funA,.003),'a2':guide(funA,.008),'b1':guide(funB,.003),'b2':guide(funB,.008)}
+ seams=[]
+ for side,label in [(-1,'left'),(1,'right')]:
+  samples=[]
+  for z in [-1.72,-1.78,-1.86,-1.96,-2.06,-2.14,-2.20,-2.25,-2.29]:
+   x=side*width(z);y=shoulder_height(z)
+   samples.append(seam_sample(top_point(x,z),lambda d,x=x,z=z:top_point(x-side*d,z),lambda d,y=y,z=z:side_point(y-d,z,side)))
+  seams.append({'id':'rear-deck-side-'+label,'panelA':'Rear deck','panelB':'Body side '+label,'samples':samples})
+ samples=[]
+ for u in [-.998,-.96,-.88,-.75,-.5,-.25,0,.25,.5,.75,.88,.96,.998]:
+  x=u*width(-2.3);y=top(x,-2.3)
+  samples.append(seam_sample(top_point(x,-2.3),lambda d,x=x:top_point(x,-2.3+d),lambda d,x=x,y=y:back_point(x,y-d)))
+ seams.append({'id':'rear-deck-bumper','panelA':'Rear deck','panelB':'Rear bumper','samples':samples})
+ for side,label in [(-1,'left'),(1,'right')]:
+  samples=[]
+  for i in range(11):
+   y=.24+(shoulder_height(-2.3)-.255)*i/10;x=side*side_x(y,-2.3)
+   samples.append(seam_sample(side_point(y,-2.3,side),lambda d,y=y:side_point(y,-2.3+d,side),lambda d,x=x,y=y:back_point(x-side*d,y)))
+  seams.append({'id':'rear-side-bumper-'+label,'panelA':'Body side '+label,'panelB':'Rear bumper','samples':samples})
+ lampSamples=[]
+ for i in range(17):
+  u=i/16;x=(2*u-1)*.916;y=.758-.033*(2*u-1)**4
+  lampSamples.append({'housingPoint':list(lamp_pt(u,.5,.003)),'bodyPoint':list(back_point(x,y)),'outward':list(surface_normal(back_point,x,y,(0,0,-1))),'expectedOffsetM':.003})
+ declaration['surfacing']={'version':1,'smoothSeams':seams,'tailHousingFit':[{'id':'rear-tail-housing','housingPanel':'Tail lamp recessed housing','bumperPanel':'Rear bumper','samples':lampSamples}]}
  e=bpy.data.objects.new('Vehicle_assembly',None);bpy.context.collection.objects.link(e);e['vehicleAssembly']=declaration
  # Merge repeated small details by material to reduce draw calls without losing structural names.
  prefixes=['Wheelhouse inner wall ','Wheelhouse felt ','Grille ','Door shut line ','Wheel arch rolled lip ','Rear diffuser fin ','Headlamp ','Front air duct ','Sill aero blade ','Flush door handle ']
@@ -268,6 +321,6 @@ def main():
  bpy.context.preferences.filepaths.save_version=0;bpy.ops.wm.save_as_mainfile(filepath=str(out/'solstice-lux-gt.blend'))
  bpy.ops.export_scene.gltf(filepath=str(out/'solstice-lux-gt.glb'),export_format='GLB',export_yup=True,export_apply=True,export_extras=True)
  binary=(out/'solstice-lux-gt.glb').read_bytes();j=json.loads(binary[20:20+struct.unpack_from('<I',binary,12)[0]])
- report={'method':'Shared-boundary controlled exterior panel rebuild; retained approved Aholo canopy, axle package and plate geometry; rebuilt correctly opened mirrors','sourcePackageSha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sourcePackage':str(source.relative_to(ROOT)),'referenceBaselineSha256':'f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da','assetSha256':hashlib.sha256(binary).hexdigest(),'glbBytes':len(binary),'triangles':sum(j['accessors'][p['indices']]['count']//3 for m in j['meshes'] for p in m['primitives']),'primitives':sum(len(m['primitives']) for m in j['meshes']),'blender':bpy.app.version_string,'assembly':declaration}
+ report={'method':'Shared C1 rear surfaces and fitted tail assembly; retained Aholo canopy, axle XZ and physical plates; real GT tire fitment v2 and window-mounted wing mirrors','sourcePackageSha256':hashlib.sha256(source.read_bytes()).hexdigest(),'sourcePackage':str(source.relative_to(ROOT)),'referenceBaselineSha256':'f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da','assetSha256':hashlib.sha256(binary).hexdigest(),'glbBytes':len(binary),'triangles':sum(j['accessors'][p['indices']]['count']//3 for m in j['meshes'] for p in m['primitives']),'primitives':sum(len(m['primitives']) for m in j['meshes']),'blender':bpy.app.version_string,'assembly':declaration}
  (out/'lux-car-build.json').write_text(json.dumps(report,indent=2),encoding='utf8');print('CANDIDATE_REBUILD',json.dumps({k:v for k,v in report.items() if k!='assembly'}))
 if __name__=='__main__':main()

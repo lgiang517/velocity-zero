@@ -11,7 +11,7 @@ const descriptions={
  hoodNormals:'all hood paint has no oppositely directed corner normals',
  wholeHoodShell:'full hood footprint has no inverted or nearly coincident exterior sheet',
  assemblyBoundaries:'shared assembly boundaries lie on actual exported panels',
- wheelPreservation:'all four wheel pivots and tire dimensions retain the frozen axle package',
+ wheelPreservation:'all four wheel pivots and tire dimensions match their explicit fitment contract',
  hoodShell:'hood underside does not flip above or almost coincide with its exterior',
  tailLens:'rear optical lens has thickness and closed consistently oriented edges',
  exhaustOpenings:'both exhaust openings see their interior instead of an uncut exterior sheet',
@@ -41,7 +41,7 @@ test('assembly verification rejects declared seam displaced off the actual mesh'
  assert.ok(!assemblyBoundaryReport(model).pass);
 });
 
-test('wheel preservation rejects a millimetre axle move and changed tire dimensions',()=>{
+test('wheel fitment rejects an unplanned millimetre axle move or tire dimension change',()=>{
  const model=readVehicleGeometry(asset);
  model.nodes=structuredClone(model.nodes);
  const wheel=model.nodes.find(n=>n.name==='Wheel_FL');wheel.translation[0]+=.001;

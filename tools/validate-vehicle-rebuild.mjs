@@ -161,10 +161,11 @@ const expectedWheels=[
  {name:'Wheel_RL',translation:[.871874988079071,.3902367949485779,-1.3388124704360962],tireRadius:.38769375,tireWidth:.2325},
  {name:'Wheel_RR',translation:[-.871874988079071,.3902367949485779,-1.3388124704360962],tireRadius:.38769375,tireWidth:.2325},
 ];
-/** Frozen f36cc7e axle package; never derive expected positions from a candidate. */
+const roadGtWheels=expectedWheels.map(w=>{const front=w.name.includes('_F'),radius=front?.36295:.3612;return {...w,translation:[w.translation[0],radius+.004,w.translation[2]],tireRadius:radius,tireWidth:front?.275:.315};});
+/** Both explicitly versioned contracts are fixed, not inferred from candidate dimensions. */
 export function wheelPreservationReport(model){
  const actual=model.nodes.filter(n=>n.name?.startsWith('Wheel_')),samples=[],defects=[];
- for(const expected of expectedWheels){
+ for(const expected of (model.declaration?.wheelFitmentVersion===2?roadGtWheels:expectedWheels)){
   const found=actual.filter(n=>n.name===expected.name),node=found[0],sample={name:expected.name,expected,actual:node??null,reasons:[]};
   if(found.length!==1)sample.reasons.push('Exactly one named wheel pivot required');
   if(node){

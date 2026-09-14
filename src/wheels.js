@@ -2,6 +2,16 @@ import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 const pools=new Map();
 
+// Normalized mesh contract: createCar scales axial width and rolling radius
+// independently from the exported axle extras. 21 inches names the bead seat,
+// not the outer flange. Shared geometry uses the mean front/rear tire radius.
+export const GT_WHEEL_SPEC=Object.freeze({
+ normalizedRadius:.375,normalizedWidth:.276,referenceRadius:.362075,
+ beadSeatRadius:.2667/.362075*.375,flangeRadius:.2800/.362075*.375,
+ front:Object.freeze({designation:'275/35 R21',radius:.36295,width:.275}),
+ rear:Object.freeze({designation:'315/30 R21',radius:.3612,width:.315})
+});
+
 // Only exported axle empties are wheel anchors. GLTFLoader also normalizes
 // body names such as "Wheel arch rolled lip" to "Wheel_arch_rolled_lip".
 export function selectWheelAnchors(body){
@@ -29,8 +39,8 @@ function disc(r,depth,x,segments=24){const g=new THREE.CylinderGeometry(r,r,dept
 function ribbon(points,widths,angle,edge=false){
  const p=[],uv=[],ix=[];
  for(let i=0;i<points.length;i++){
-  const [r,a]=points[i],t=angle+a,front=.101+.049*Math.pow(r/.31,1.2),w=widths[i];
-  const section=edge?[[front+.001,w*.79],[front+.001,w*.98]]:[[front,w*.76],[front-.005,w],[front-.024,w*.85],[front-.024,-w*.85],[front-.005,-w],[front,-w*.76]];
+  const [r,a]=points[i],t=angle+a,front=.116+.017*Math.pow(r/.29,1.3),w=widths[i];
+  const section=edge?[[front+.001,w*.79],[front+.001,w*.98]]:[[front,w*.76],[front-.005,w],[front-.018,w*.85],[front-.018,-w*.85],[front-.005,-w],[front,-w*.76]];
   for(const [x,offset]of section){p.push(x,Math.cos(t)*r-Math.sin(t)*offset,Math.sin(t)*r+Math.cos(t)*offset);uv.push(i/(points.length-1),offset/w);}
  }
  const n=edge?2:6;
@@ -56,11 +66,6 @@ function tireBump(){
 function build(simple){
  const seg=simple?48:96,buckets=new Map(),colors={rubber:'#24262a',dark:'#171b21',alloy:'#6f7883',cut:'#c9d0d7',rotor:'#747d83',caliper:'#b91d16'};
  function add(kind,g,color){
-  // The caliper wraps the rotor behind the spoke backs; it must not intersect
-  // a rotating branch at any wheel angle. Preserve the axle and tire envelope.
-  if(kind==='caliper')g.translate(-.040,0,0);
-  // A 21-inch class wheel inside the preserved 0.78 m tire, with a real sidewall.
-  if(kind!=='rubber')g.scale(1,kind==='rotor'?.7812:.84,kind==='rotor'?.7812:.84);
   if(simple&&(kind==='cut'||kind==='rotor'))kind='alloy';
   if(g.index){const old=g;g=old.toNonIndexed();old.dispose();}
   if(!g.getAttribute('normal'))g.computeVertexNormals();
@@ -69,45 +74,77 @@ function build(simple){
   const c=new THREE.Color(color||colors[kind]),a=new Float32Array(count*3);for(let i=0;i<count;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
   g.setAttribute('color',new THREE.BufferAttribute(a,3));if(!buckets.has(kind))buckets.set(kind,[]);buckets.get(kind).push(g);
  }
- add('rubber',lathe([[-.137,.251],[-.138,.282],[-.130,.326],[-.094,.369],[-.065,.375],[.065,.375],[.094,.369],[.130,.326],[.138,.282],[.137,.251]],seg));
- add('dark',annulus(.132,.291,.309,.254,seg));
- add('cut',lathe([[.135,.299],[.148,.303],[.151,.310],[.145,.315],[.136,.313]],seg));
- add('alloy',annulus(-.128,.294,.31,.01,seg));
- // Fine raised sidewall moulding stays under the unchanged 0.375 m outer radius.
- for(const [r,x]of[[.284,.1375],[.318,.1314]])add('rubber',lathe([[x,r-.001],[x+.0015,r],[x,r+.001]],seg));
- if(!simple){
-  for(let i=0;i<60;i++){
-   const a=i*Math.PI*2/60,g=new THREE.BoxGeometry(.0015,.009,.0022);g.rotateX(a);g.translate(.1345,Math.cos(a)*.304,Math.sin(a)*.304);add('rubber',g,'#323439');
+ // Rounded shoulders and a convex sidewall. The tread is broad; the
+ // flange partly overlaps the bead, as a real mounted tire does.
+ const seat=GT_WHEEL_SPEC.beadSeatRadius,flange=GT_WHEEL_SPEC.flangeRadius;
+ const shoulder=[[-.121,seat-.003],[-.128,.292],[-.134,.309],[-.138,.328],
+  [-.136,.342],[-.128,.356],[-.114,.367],[-.094,.373]];
+ const crown=x=>.375-.002*Math.pow(Math.abs(x)/.094,4);
+ const tread=[[-.094,crown(-.094)]];
+ // Four physically recessed drainage channels read at close range without
+ // inflating bump strength or stamping tread across the sidewalls.
+ for(const c of[-.073,-.026,.026,.073])for(const [dx,depth]of[[-.0035,0],[-.002,.003],[.002,.003],[.0035,0]])
+  tread.push([c+dx,crown(c+dx)-depth]);
+ tread.splice(9,0,[0,.375]);tread.push([.094,crown(.094)]);
+ add('rubber',lathe([...shoulder.slice(0,-1),...tread,...shoulder.slice(0,-1).reverse().map(([x,r])=>[-x,r])],seg));
+ // A closed barrel with a recessed well and radiused outer flange.
+ add('dark',lathe([[-.124,.270],[-.124,seat],[-.103,seat],[-.091,.266],
+  [.080,.266],[.103,seat],[.124,seat],[.124,.270],[-.124,.270]],seg));
+ for(const side of[-1,1]){const profile=[
+  [side*.117,seat-.003],[side*.127,seat],[side*.131,flange-.002],
+  [side*.129,flange],[side*.124,flange+.0003],[side*.119,flange-.003],
+  [side*.117,seat-.003]
+ ];add('alloy',lathe(side<0?profile.reverse():profile,seg));}
+ add('cut',lathe([[.129,flange-.004],[.130,flange-.002],[.1285,flange]],seg));
+ // Subtle bead-protection and mould lines follow the rounded sidewall.
+ for(const side of[-1,1])for(const [r,x]of[[.301,.132],[.345,.135]])
+  add('rubber',lathe([[side*x,r-.0006],[side*(x+.0006),r],[side*x,r+.0006]],seg));
+ // Five paired curved spokes: dense longitudinal stations avoid the former
+ // angular, three-station star silhouette. Face highlights remain narrow.
+ for(let i=0;i<5;i++)for(const branch of[-1,1]){
+  const points=[],widths=[];
+  for(let j=0;j<=12;j++){
+   const t=j/12,r=.048+(.276-.048)*t;
+   const spread=branch*(.028+.105*t*t*(3-2*t));
+   points.push([r,spread+.035*Math.sin(Math.PI*t)]);
+   widths.push(.008+.004*Math.sin(Math.PI*t)+.002*t);
   }
+  const angle=i*Math.PI*2/5+.10;
+  add('alloy',ribbon(points,widths,angle));
+  if(!simple)add('cut',ribbon(points,widths,angle,true));
  }
- // Five sculpted Y spokes, each with a concave stem and two swept, bevelled branches.
- for(let i=0;i<5;i++){
-  const a=i*Math.PI*2/5+.10;
-  const paths=[{p:[[.048,0],[.105,.01],[.168,.015]],w:[.024,.029,.021]},{p:[[.128,.015],[.217,-.115],[.299,-.172]],w:[.019,.020,.022]},{p:[[.128,.015],[.219,.16],[.299,.21]],w:[.019,.018,.024]}];
-  for(const [index,path]of paths.entries()){
-   add('alloy',ribbon(path.p,path.w,a));
-   if(!simple&&index>0){const start=[.17,index===1?-.046:.083];add('cut',ribbon([start,...path.p.slice(1)],[.020,...path.w.slice(1)],a,true));}
-  }
- }
- add('rotor',annulus(.081,.073,.257,.016,seg));
- add('dark',disc(.094,.025,.084,simple?24:48));
- // Drilled recesses and concentric machining lines sit behind the open spokes.
+ // 405 mm nominal rotor inside a 21-inch bead seat, independently dimensioned.
+ const rotor=.2025/GT_WHEEL_SPEC.referenceRadius*.375;
+ add('rotor',annulus(.074,.076,rotor,.016,seg));
+ add('dark',disc(.094,.025,.069,simple?24:48));
  for(let i=0;i<(simple?12:30);i++){
-  const a=i*Math.PI*2/(simple?12:30),r=i%2?.229:.201,g=disc(simple?.007:.0055,.0015,.082,simple?5:8);g.translate(0,Math.cos(a)*r,Math.sin(a)*r);add('dark',g,'#24272b');
+  const a=i*Math.PI*2/(simple?12:30),r=i%2?rotor-.014:rotor-.032;
+  const g=disc(simple?.0045:.003,.001,.0748,simple?5:8);
+  g.translate(0,Math.cos(a)*r,Math.sin(a)*r);add('dark',g,'#24272b');
  }
- if(!simple)for(const r of[.113,.145,.179,.249])add('rotor',annulus(.0822,r-.0006,r+.0006,.0003,seg),'#71797d');
- add('alloy',disc(.066,.038,.119,32));
- add('cut',annulus(.146,.038,.044,.006,32));
- add('dark',disc(.038,.013,.149,32));
+ if(!simple)for(const r of[.111,.143,.179,rotor-.005])
+  add('rotor',annulus(.0742,r-.0004,r+.0004,.0003,seg),'#71797d');
+ add('alloy',disc(.066,.032,.115,32));
+ add('cut',annulus(.134,.037,.042,.004,32));
+ add('dark',disc(.037,.009,.135,32));
  for(let i=0;i<5;i++){
-  const a=i*Math.PI*2/5+.4,g=disc(.0095,.009,.146,6);g.translate(0,Math.cos(a)*.052,Math.sin(a)*.052);add('cut',g);
+  const a=i*Math.PI*2/5+.4,g=disc(.008,.007,.135,6);
+  g.translate(0,Math.cos(a)*.052,Math.sin(a)*.052);add('cut',g);
  }
- // Original V crest, deliberately not a real marque's badge.
- for(const side of[-1,1]){const g=new THREE.BoxGeometry(.0015,.028,.004);g.rotateX(side*.52);g.translate(.157,.001,side*.006);add('cut',g,'#d7b576');}
- // Fixed radial caliper shares steering, but is never parented under the rolling group.
- const caliper=new THREE.CapsuleGeometry(.034,.105,simple?2:4,simple?8:12);caliper.rotateX(.18);caliper.scale(.75,1,1.55);caliper.translate(.107,.025,-.221);add('caliper',caliper);
- const bridge=new THREE.BoxGeometry(.040,.100,.031,1,1,1);bridge.translate(.080,.025,-.245);add('caliper',bridge,'#77100d');
- for(const y of[-.022,.035,.081]){const g=new THREE.BoxGeometry(.004,.011,.058);g.translate(.134,y,-.219);add('caliper',g,'#da382a');}
+ for(const side of[-1,1]){
+  const g=new THREE.BoxGeometry(.0015,.024,.0035);g.rotateX(side*.52);
+  g.translate(.142,.001,side*.006);add('cut',g,'#d7b576');
+ }
+ // Caliper embraces the rotor but ends before every rotating spoke back.
+ const caliper=new THREE.CapsuleGeometry(.026,.085,simple?2:4,simple?8:12);
+ caliper.rotateX(.18);caliper.scale(.69,1,1.1);
+ caliper.translate(.071,.018,-.191);add('caliper',caliper);
+ const bridge=new THREE.BoxGeometry(.037,.086,.024);
+ bridge.translate(.068,.018,-.208);add('caliper',bridge,'#77100d');
+ for(const y of[-.021,.018,.057]){
+  const g=new THREE.BoxGeometry(.003,.008,.038);
+  g.translate(.089,y,-.190);add('caliper',g,'#da382a');
+ }
  const geometries=new Map();let triangles=0;
  for(const[k,list]of buckets){const g=mergeGeometries(list,false);for(const part of list)part.dispose();g.computeBoundingBox();g.computeBoundingSphere();triangles+=g.attributes.position.count/3;geometries.set(k,g);}
  return {geometries,texture:simple?null:tireBump(),triangles,refs:0};
@@ -120,7 +157,7 @@ export function createWheelSet({simple=false}={}){
   const rubber=kind==='rubber',caliper=kind==='caliper',dark=kind==='dark';
   const m=new THREE.MeshStandardMaterial({vertexColors:true,metalness:rubber?0:caliper?.42:dark?.65:.92,roughness:rubber?.9:caliper?.31:dark?.4:kind==='cut'?.19:kind==='rotor'?.52:.29});
   m.name='Forged wheel '+kind;m.envMapIntensity=kind==='cut'?1.35:.95;
-  if(rubber&&pool.texture){m.bumpMap=pool.texture;m.bumpScale=.0022;}
+  if(rubber&&pool.texture){m.bumpMap=pool.texture;m.bumpScale=.00085;}
   materials.set(kind,m);
  }
  let disposed=false;

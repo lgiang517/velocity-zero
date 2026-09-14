@@ -158,7 +158,11 @@ export function createCockpit({simple=false,assembly=null}={}) {
  const windowUpper=z=>.73+.20*Math.abs(2*(z+1.32)/2.07-1)**2;
  const beltHeight=z=>canopyPoint(z,.985,-.017)[1];
  // Remove the shoulder dip. The fixed front quarter meets the sampled dash top.
- const doorShoulder=z=>{const a=beltHeight(z),b=dashTopAt(DASH_HALF_WIDTH,z,assembly)*THREE.MathUtils.smoothstep(z,.68,.90),h=Math.max(.008-Math.abs(a-b),0)/.008;return Math.max(a,b)+h*h*.002;};
+ const doorShoulder=z=>{
+  const belt=beltHeight(z);
+  if(assembly&&z<=.82){const edge=sampleAssemblyChain(assembly.windscreenInnerLower,DASH_HALF_WIDTH);return THREE.MathUtils.lerp(belt,Math.max(belt,edge.y-.006),THREE.MathUtils.smoothstep(z,.20,.80));}
+  const dash=dashTopAt(DASH_HALF_WIDTH,z,assembly);return THREE.MathUtils.lerp(belt,Math.max(belt,dash),THREE.MathUtils.smoothstep(z,.52,.80));
+ };
  // A closed solid loft gives every inner face the correct FrontSide winding.
  function solidLoft(source,chooseMaterial=()=>lower){
   const rings=source.map(r=>r.map(p=>p.slice())),n=rings[0].length;
@@ -169,7 +173,7 @@ export function createCockpit({simple=false,assembly=null}={}) {
   for(let i=0;i<rings.length;i++)for(let j=0;j<n;j++){pos.push(...rings[i][j]);tex.push(j/n,i/(rings.length-1));}
   for(let i=0;i<rings.length-1;i++)for(let j=0;j<n;j++){
    const a=i*n+j,b=i*n+(j+1)%n,c=a+n,d=b+n,p=rings[i][j],q=rings[i][(j+1)%n];
-   face([a,b,c,b,d,c],chooseMaterial([(p[0]+q[0])/2,(p[1]+q[1])/2,(p[2]+q[2])/2]));
+   face([a,b,c,b,d,c],chooseMaterial([(p[0]+q[0])/2,(p[1]+q[1])/2,(p[2]+q[2])/2],area<0?(n-2-j+n)%n:j,n));
   }
   for(const row of[0,rings.length-1]){
    // Separate cap vertices keep the thin door assembly seam flat. Sharing these
@@ -207,7 +211,7 @@ export function createCockpit({simple=false,assembly=null}={}) {
   const sectionZ=[...Array.from({length:35},(_,i)=>-1.32+(DOOR_FRONT_SEAM-.002+1.32)*i/34),...Array.from({length:15},(_,i)=>DOOR_FRONT_SEAM+.002+(1.26-DOOR_FRONT_SEAM-.002)*i/14)];
   const section=z=>{
    const top=doorShoulder(z),front=THREE.MathUtils.smoothstep(z,.38,DOOR_FRONT_SEAM-.002),rear=1-THREE.MathUtils.smoothstep(z,-1.30,-1.07),fixed=Math.max(front,rear);
-   const contour=[[.816,.23],[.800,.35],[.790,.50],[.800,top-(.165-.075*THREE.MathUtils.smoothstep(z,.15,.65))],[.811,top-.085],[.798,top-.046],[.790,top-.008],[.803,top+.003],[.861,top-.014],[.876,top-.083],[.884,.40],[.851,.23]];
+   const contour=[[.816,.23],[.806,.35],[.796,.50],[.790,top-.185],[.788,top-.115],[.789,top-.060],[.794,top-.018],[.807,top+.003],[.857,top-.013],[.876,top-.073],[.884,.40],[.851,.23]];
    const cross=new THREE.CatmullRomCurve3(contour.map(([x,y],j)=>new THREE.Vector3(side*(j<8?THREE.MathUtils.lerp(x,j===0?.816:.819,fixed):x),y,z)),true,'catmullrom',.25);
    return Array.from({length:48},(_,j)=>cross.getPoint(j/48).toArray());
   };
@@ -219,8 +223,10 @@ export function createCockpit({simple=false,assembly=null}={}) {
    for(let j=0;j<ring.length;j++){const a=ring[j],b=ring[(j+1)%ring.length];if(y>=Math.min(a[1],b[1])&&y<=Math.max(a[1],b[1])&&Math.abs(a[1]-b[1])>1e-8)inner=Math.min(inner,Math.abs(THREE.MathUtils.lerp(a[0],b[0],(y-a[1])/(b[1]-a[1]))));}
    return [side*(inner-.001),y,z];
   };
-  const doorMaterial=p=>p[1]>doorShoulder(p[2])-(.165-.075*THREE.MathUtils.smoothstep(p[2],.15,.65))?leather:lower;
-  solidLoft(rings.slice(0,35),doorMaterial);solidLoft(rings.slice(35),doorMaterial);
+  // Material joins follow one longitudinal contour station instead of
+  // switching at a height threshold, which produced visible stair steps.
+  const doorMaterial=(p,j)=>j>=13&&j<=33?leather:lower;
+  solidLoft(rings.slice(0,35),doorMaterial);solidLoft(rings.slice(35),(p,j)=>j>=13&&j<=33?rimLeather:lower);
   // Recessed rubber backs the real 4 mm door/fixed-quarter assembly seam.
   box([.012,doorShoulder(DOOR_FRONT_SEAM)-.23,.004],[side*.842,(doorShoulder(DOOR_FRONT_SEAM)+.23)/2,DOOR_FRONT_SEAM],ventBlack,.001);
   // A continuous rubber belt seal sits on the rolled leather shoulder, never in mid-air.
@@ -237,8 +243,8 @@ export function createCockpit({simple=false,assembly=null}={}) {
   for(const z of[-.490,-.090])box([.053,.060,.050],[side*(.750+.048),.698,z],insert,.010);
   tube([[side*(.750+.048),.716,-.490],[side*(.702+.048),.716,-.395],[side*(.700+.048),.716,-.182],[side*(.751+.048),.720,-.090]],.0105,satin,root,false,36);
   for(const z of[-.42,-.33])box([.025,.008,.047],[side*(.702+.048),.674,z],graphite,.003);
-  box([.023,.059,.172],[side*(.752+.048),.754,.150],insert,.011);
-  tube([[side*(.737+.048),.762,.091],[side*(.729+.048),.762,.178],[side*(.749+.048),.748,.205]],.0055,satin,root,false,18);
+  box([.021,.047,.160],[side*.790,.745,.150],insert,.016);
+  tube([[side*.775,.752,.093],[side*.772,.754,.170],[side*.783,.742,.199]],.0045,satin,root,false,24);
   const padStitch=[];for(let i=0;i<=18;i++)padStitch.push([side*(.686+.048),.646,-.632+.584*i/18]);line(padStitch);
   // A shallow pocket and recessed grille make the lower door read as one molded card.
   box([.076,.076,.48],[side*(.762+.048),.415,-.303],rimLeather,.018);

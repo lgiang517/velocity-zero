@@ -29,11 +29,15 @@ export function validateLuxCar(path){
  if(material.name==='Plate'){assert.ok(p.attributes.COLOR_0!==undefined,'Plate vertex tint required');const color=accessor(p.attributes.COLOR_0);assert.equal(color.a.count,pos.a.count);for(const value of color.values)assert.ok(Number.isFinite(value));colorPlate=true;plateCenters.push(new THREE.Box3().setFromPoints(points).getCenter(new THREE.Vector3()).z);}
  geometries.push({name:node.name,material:material.name,points,indices});
  }
- assert.ok(triangles<100000,`Triangle budget exceeded: ${triangles}`);assert.ok(windowNodes.size>=4,'At least four separate glass nodes');assert.ok(colorPlate,'Plate material with COLOR_0');assert.ok(plateCenters.some(z=>z>1.5)&&plateCenters.some(z=>z<-1.5),'Physical plates at both vehicle ends');
+ // Dense sampling is confined to the rebuilt high-curvature rear; legacy assets retain their budget.
+ const assembly=json.nodes.find(n=>n.name==='Vehicle_assembly')?.extras?.vehicleAssembly;
+ const triangleBudget=assembly?.wheelFitmentVersion===2&&assembly?.surfacing?.version===1?160000:100000;
+ assert.ok(triangles<triangleBudget,`Triangle budget exceeded: ${triangles} / ${triangleBudget}`);
+ assert.ok(g.file.length<5*1024*1024,'Vehicle GLB must stay below 5 MiB');assert.ok(windowNodes.size>=4,'At least four separate glass nodes');assert.ok(colorPlate,'Plate material with COLOR_0');assert.ok(plateCenters.some(z=>z>1.5)&&plateCenters.some(z=>z<-1.5),'Physical plates at both vehicle ends');
  const wheels=g.roots.map(index=>json.nodes[index]).filter(n=>n.name?.startsWith('Wheel_'));assert.equal(wheels.length,4,'Four wheel pivots');for(const w of wheels){assert.ok(g.roots.includes(json.nodes.indexOf(w)),'Wheel pivot must be top-level');assert.equal(w.mesh,undefined,'Wheel pivot must be Empty');assert.ok(w.extras?.tireRadius>.2&&w.extras.tireRadius<.6,'Wheel radius');assert.ok(w.extras?.tireWidth>.1&&w.extras.tireWidth<.6,'Wheel width');assert.ok(Math.abs(w.translation?.[0])>.5&&Math.abs(w.translation?.[2])>.6,'Real wheel center');}
  assert.ok(geometries.some(m=>m.name==='Driver_hood'&&m.indices.length>3),'Driver_hood geometry');
  const images=(json.images||[]).map(im=>{assert.ok(im.bufferView!==undefined,'Embedded texture required');const view=json.bufferViews[im.bufferView],size=imageSize(g.bin.subarray(view.byteOffset||0,(view.byteOffset||0)+view.byteLength));assert.ok(size.every(n=>n>0&&n<=2048),'Texture <= 2K');return size;});
- return {bytes:g.file.length,triangles,primitives:instances.length,materials,windows:windowNodes.size,wheels:wheels.map(w=>({name:w.name,position:w.translation,...w.extras})),textures:images,bounds:{min:bounds.min.toArray(),max:bounds.max.toArray()},plateCenters,geometries};
+ return {bytes:g.file.length,triangles,triangleBudget,primitives:instances.length,materials,windows:windowNodes.size,wheels:wheels.map(w=>({name:w.name,position:w.translation,...w.extras})),textures:images,bounds:{min:bounds.min.toArray(),max:bounds.max.toArray()},plateCenters,geometries};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){const report=validateLuxCar(process.argv[2]||'public/models/solstice-lux-gt.glb');delete report.geometries;console.log(JSON.stringify(report,null,2));}
 

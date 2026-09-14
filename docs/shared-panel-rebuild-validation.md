@@ -1,5 +1,8 @@
 # Shared-panel vehicle repair — 2026-09-14
 
+> **Acceptance superseded / NOT READY FOR DELIVERY (2026-09-14):** The real-car comparison and exported-mesh re-audit found a rear corner mismatch up to 37.74 mm between termination edges, plus large geometric/shading-normal jumps. The 152-test result below remains historical regression evidence, not visual approval. See [vehicle-realism-review.md](vehicle-realism-review.md). No release of this repair occurred.
+
+
 This repair implements the approved shared-boundary panel rebuild. The comparison baseline is production commit `979d1a58f758eb93b414ef828c8c629ee61ebe4e`, model SHA256 `f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da` (74,268 triangles / 45 primitives / 2,140,024 bytes).
 
 ## Changes and reproducibility

@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {DASH_HALF_WIDTH,DASH_END_CAP_WIDTH,dashFrontPoint,dashSectionPoint,createDashShellGeometry,createDashEndCapGeometry,createWindscreenLandingGeometry} from '../src/cabin-junctions.js';
+import {DASH_HALF_WIDTH,DASH_END_CAP_WIDTH,dashFrontPoint,dashSectionPoint,createDashShellGeometry,createDashEndCapGeometry,createWindscreenLandingGeometry,createAPillarJunctionGeometry} from '../src/cabin-junctions.js';
+
+import {readVehicleAssembly} from '../src/vehicle-assembly.js';
 
 const v=(p,i)=>new THREE.Vector3().fromBufferAttribute(p,i);
 test('windscreen landing and dash use identical front boundary vertices',()=>{
@@ -61,4 +63,19 @@ test('landing terminates at the supplied bonnet surface and blocks the former un
    const ray=new THREE.Raycaster(eye,new THREE.Vector3(x,y,1.04).sub(eye).normalize());assert.ok(ray.intersectObject(mesh).length>0,`under-bonnet sightline ${x},${y}`);
   }
  }finally{material.dispose();g.dispose();}
+});
+
+
+test('A-pillar boot stays compact at the cowl instead of folding back over the door top',()=>{
+ const assembly=readVehicleAssembly(new THREE.Group());
+ for(const side of[-1,1]){
+  const g=createAPillarJunctionGeometry(assembly,side);
+  try{
+   const base=g.userData.junction.base,z=base.map(p=>p[2]),x=base.map(p=>p[0]);
+   assert.ok(Math.max(...z)-Math.min(...z)<.075,'boot retains the old long triangular fan');
+   assert.ok(Math.max(...x)-Math.min(...x)<.075,'boot overhangs the formed corner');
+   assert.ok(Math.min(...z)>.70,'pillar folds rearward over the door upholstery');
+   for(const y of base.map(p=>p[1]))assert.ok(y>.84&&y<.91);
+  }finally{g.dispose();}
+ }
 });
