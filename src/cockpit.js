@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {sampleAssemblyChain} from './vehicle-assembly.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {DASH_HALF_WIDTH,DOOR_FRONT_SEAM,dashSectionPoint,dashTopAt,createDashShellGeometry,createDashEndCapGeometry} from './cabin-junctions.js';
+import {DASH_HALF_WIDTH,DOOR_FRONT_SEAM,dashSectionPoint,dashTopAt,createDashShellGeometry,createDashEndCapGeometry,createAPillarJunctionGeometry} from './cabin-junctions.js';
 
 // Local +Z points through the windscreen; every instrument face points back at the driver.
 // The cabin is independent of the exterior materials hidden by car.setInterior().
-export function createCockpit({simple=false}={}) {
+export function createCockpit({simple=false,assembly=null}={}) {
  const root=new THREE.Group(),steeringWheel=new THREE.Group();
  root.name='GT cockpit';root.visible=false;root.add(steeringWheel);
  steeringWheel.position.set(.35,.78,.17);
@@ -70,10 +71,17 @@ export function createCockpit({simple=false}={}) {
  function cylinder(r,h,pos,m=satin,parent=root,segments=32){add(new THREE.CylinderGeometry(r,r,h,segments),m,pos,[Math.PI/2,0,0],parent);}
  function ring(rx,ry,pos,m=satin,parent=root,r=.0025){const pts=[];for(let i=0;i<48;i++){const a=i/48*Math.PI*2;pts.push([pos[0]+Math.cos(a)*rx,pos[1]+Math.sin(a)*ry,pos[2]]);}return tube(pts,r,m,parent,true,64);}
  // A continuous padded dash rolls from the windscreen shelf into the lower fascia.
- add(createDashShellGeometry(),leather);
- for(const side of[-1,1])add(createDashEndCapGeometry(side),lower);
+ if(assembly){
+  const shell=createDashShellGeometry(assembly),p=shell.attributes.position,index=shell.index,top=[],fascia=[],{rows,cols}=shell.userData.dashSections;
+  for(let i=0;i<index.count;i+=3){const tri=[index.getX(i),index.getX(i+1),index.getX(i+2)],y=tri.reduce((sum,j)=>sum+p.getY(j),0)/3;const isTop=i<rows*cols*6?Math.floor(i/6)%cols<13:y>.815;(isTop?top:fascia).push(...tri);}
+  for(const [indices,mat]of[[top,rimLeather],[fascia,leather]]){const part=shell.clone();part.setIndex(indices);add(part,mat);}shell.dispose();
+ }else add(createDashShellGeometry(),leather);
+ for(const side of[-1,1])add(createDashEndCapGeometry(side,assembly),lower);
  // The seam, satin reveal and ambient strip follow the fascia instead of floating above it.
- for(const zOffset of[0,.009]){
+ if(assembly)for(const t of[.075,.095]){
+  const seam=[];for(let i=0;i<=80;i++){const x=(i/80-.5)*1.55,p=dashSectionPoint(x,t,assembly);p.y+=.0012;seam.push(p.toArray());}line(seam);
+ }
+ else for(const zOffset of[0,.009]){
   const z=.927+zOffset;let surface=dashSectionPoint(0,0);for(let i=1;i<=160;i++){const p=dashSectionPoint(0,i/500);if(Math.abs(p.z-z)<Math.abs(surface.z-z))surface=p;}
   const seam=[];for(let i=0;i<=80;i++){const x=(i/80-.5)*1.55;seam.push([x,surface.y-.013*(x/DASH_HALF_WIDTH)**2+.0012,z+.055*(Math.abs(x)/DASH_HALF_WIDTH)**3]);}line(seam);
  }
@@ -97,8 +105,23 @@ export function createCockpit({simple=false}={}) {
  const labelMat=basic({map:labelTexture,transparent:true,alphaTest:.1,depthWrite:false,toneMapped:false});
  function label(text,pos,w=.020,h=.012,parent=root){const n=labels.indexOf(text),g=new THREE.PlaneGeometry(w,h),a=g.attributes.uv;for(let i=0;i<a.count;i++)a.setXY(i,(n%4+a.getX(i))/4,(3-Math.floor(n/4)+a.getY(i))/4);add(g,labelMat,pos,[0,Math.PI,0],parent);}
  // Four recessed vents, each with a satin perimeter and five actual louvres.
- function vent(x,y,z,width=.15){box([width+.012,.058,.046],[x,y,z+.015],graphite,.024);box([width,.046,.014],[x,y,z-.010],ventBlack,.020);ring(width*.47,.022,[x,y,z-.019],satin,root,.0016);for(let j=-2;j<=2;j++)box([width*.81,.0025,.018],[x,y+j*.0065,z-.020],graphite,.001,[.16,0,0]);box([.013,.010,.012],[x+.018,y,z-.034],satin,.003);}
+ // Sample the actual triangulated fascia so its curved side cannot swallow the
+ // backing plate while the nearer louvres remain visible as floating strips.
+ const ventMount=assembly?new THREE.Mesh(createDashShellGeometry(assembly),new THREE.MeshBasicMaterial({side:THREE.DoubleSide})):null;
+ const ventRay=new THREE.Raycaster(),ventPlacements=[];
+ function fitVent(x,y,z,width){
+  if(!ventMount)return z;
+  let front=Infinity;
+  for(const dx of[-width*.5,0,width*.5])for(const dy of[-.029,0,.029]){
+   ventRay.set(new THREE.Vector3(x+dx,y+dy,0),new THREE.Vector3(0,0,1));
+   const hit=ventRay.intersectObject(ventMount,false)[0];if(hit)front=Math.min(front,hit.point.z);
+  }
+  return Math.min(z,front+.007);
+ }
+ function vent(x,y,z,width=.15){z=fitVent(x,y,z,width);ventPlacements.push({x,y,z,width});box([width+.012,.058,.046],[x,y,z+.015],graphite,.024);box([width,.046,.014],[x,y,z-.010],ventBlack,.020);ring(width*.47,.022,[x,y,z-.019],satin,root,.0016);for(let j=-2;j<=2;j++)box([width*.81,.0025,.018],[x,y+j*.0065,z-.020],graphite,.001,[.16,0,0]);box([.013,.010,.012],[x+.018,y,z-.034],satin,.003);}
  vent(-.238,.735,.622,.153);vent(-.040,.735,.606,.153);vent(-.737,.738,.670,.113);vent(.745,.739,.670,.102);
+ if(ventMount){ventMount.geometry.dispose();ventMount.material.dispose();}
+ root.userData.ventPlacements=ventPlacements;
  // A descending center stack with a real inset switch panel and raised side rails.
  box([.31,.28,.17],[-.11,.557,.532],lower,.034,[.24,0,0]);
  box([.274,.175,.027],[-.11,.594,.428],insert,.023,[.24,0,0]);
@@ -135,7 +158,7 @@ export function createCockpit({simple=false}={}) {
  const windowUpper=z=>.73+.20*Math.abs(2*(z+1.32)/2.07-1)**2;
  const beltHeight=z=>canopyPoint(z,.985,-.017)[1];
  // Remove the shoulder dip. The fixed front quarter meets the sampled dash top.
- const doorShoulder=z=>{const a=beltHeight(z),b=dashTopAt(DASH_HALF_WIDTH,z)*THREE.MathUtils.smoothstep(z,.68,.90),h=Math.max(.008-Math.abs(a-b),0)/.008;return Math.max(a,b)+h*h*.002;};
+ const doorShoulder=z=>{const a=beltHeight(z),b=dashTopAt(DASH_HALF_WIDTH,z,assembly)*THREE.MathUtils.smoothstep(z,.68,.90),h=Math.max(.008-Math.abs(a-b),0)/.008;return Math.max(a,b)+h*h*.002;};
  // A closed solid loft gives every inner face the correct FrontSide winding.
  function solidLoft(source,chooseMaterial=()=>lower){
   const rings=source.map(r=>r.map(p=>p.slice())),n=rings[0].length;
@@ -162,14 +185,24 @@ export function createCockpit({simple=false}={}) {
  }
  // The headliner follows the coupe canopy. Its front header remains behind the windscreen
  // so the original driving sightline stays open; the side rails meet both A-pillars exactly.
+ const frontHeaderZ=assembly?assembly.windscreenUpper[0][2]-.018:-.115;
+ const roofPoint=(z,u,offset)=>{
+  const p=new THREE.Vector3(...canopyPoint(z,u,offset));
+  if(assembly){
+   const width=Math.abs(assembly.windscreenUpper.at(-1)[0])-.020,x=u/windowUpper(z)*width;
+   const edge=sampleAssemblyChain(assembly.windscreenUpper,x);edge.y+=offset;edge.z=z;
+   p.lerp(edge,THREE.MathUtils.smoothstep(z,-.35,frontHeaderZ));
+  }
+  return p.toArray();
+ };
  const roofRings=[];
  for(let i=0;i<=32;i++){
-  const z=-1.32+1.205*i/32,u=windowUpper(z),inside=[],outside=[];
-  for(let j=0;j<=24;j++){const across=u*(j/12-1);inside.push(canopyPoint(z,across,-.029));outside.unshift(canopyPoint(z,across,-.004));}
+  const z=-1.32+(frontHeaderZ+1.32)*i/32,u=windowUpper(z),inside=[],outside=[];
+  for(let j=0;j<=24;j++){const across=u*(j/12-1);inside.push(roofPoint(z,across,-.029));outside.unshift(roofPoint(z,across,-.004));}
   roofRings.push([...inside,...outside]);
  }
  solidLoft(roofRings);
- const header=[];for(let j=0;j<=32;j++)header.push(canopyPoint(-.115,windowUpper(-.115)*(j/16-1),-.031));tube(header,.009,rimLeather,root,false,40);
+ const header=[];for(let j=0;j<=32;j++)header.push(roofPoint(frontHeaderZ,windowUpper(frontHeaderZ)*(j/16-1),-.031));tube(header,.009,rimLeather,root,false,40);
  for(const side of[-1,1]){
   const sectionZ=[...Array.from({length:35},(_,i)=>-1.32+(DOOR_FRONT_SEAM-.002+1.32)*i/34),...Array.from({length:15},(_,i)=>DOOR_FRONT_SEAM+.002+(1.26-DOOR_FRONT_SEAM-.002)*i/14)];
   const section=z=>{
@@ -214,7 +247,10 @@ export function createCockpit({simple=false}={}) {
   const grille=[];for(let j=0;j<40;j++){const a=j/40*Math.PI*2;grille.push([side*(.740+.038),.448+Math.sin(a)*.083,.280+Math.cos(a)*.083]);}tube(grille,.002,graphite,root,true,48);
   for(let j=-8;j<=8;j++){const y=j*.0084,zWidth=2*Math.sqrt(Math.max(0,.076**2-y*y));box([.002,.0018,zWidth],[side*(.740+.038),.448+y,.280],graphite,.0005);}
   // Side window rails follow the exported glass boundary; the rear jamb closes on the belt.
-  const rail=[];for(let i=0;i<=34;i++){const z=-1.32+1.205*i/34;rail.push(canopyPoint(z,side*windowUpper(z),-.024));}tube(rail,.016,rimLeather,root,false,44);
+  const rail=[];for(let i=0;i<=34;i++){const z=-1.32+(frontHeaderZ+1.32)*i/34;rail.push(roofPoint(z,side*windowUpper(z),-.024));}tube(rail,.016,rimLeather,root,false,44);
+  if(assembly){
+   add(createAPillarJunctionGeometry(assembly,side),rimLeather);
+  }else{
   const upper=canopyPoint(-.115,side*windowUpper(-.115),-.024),foot=canopyPoint(.93,side*.985,-.008),middle=canopyPoint(.34,side*.84,-.020);
   const extendedTop=new THREE.Vector3(...upper).add(new THREE.Vector3(...upper).sub(new THREE.Vector3(...middle)).normalize().multiplyScalar(.035)).add(new THREE.Vector3(0,.05,0)).toArray();
   const extendedFoot=new THREE.Vector3(...foot).add(new THREE.Vector3(...foot).sub(new THREE.Vector3(...middle)).normalize().multiplyScalar(.018)).toArray();
@@ -231,6 +267,7 @@ export function createCockpit({simple=false}={}) {
   for(let i=0;i<40;i++)for(let j=0;j<12;j++){const a=i*12+j,b=i*12+(j+1)%12,c=a+12,d=b+12;pi.push(a,b,c,b,d,c);}
   const pillar=new THREE.BufferGeometry();pillar.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));pillar.setAttribute('uv',new THREE.Float32BufferAttribute(pu,2));pillar.setIndex(pi);pillar.computeVertexNormals();add(pillar,rimLeather);
   tube(aPillar.slice(0,2).map(([x,y,z])=>[x-side*.013,y-.001,z]),.0035,ventBlack,root,false,24);
+  }
   const rearTop=canopyPoint(-1.32,side*windowUpper(-1.32),-.024),rearBottom=[side*.819,beltHeight(-1.32),-1.32];tube([rearBottom,rearTop],.018,rimLeather,root,false,6,true);
 
  }

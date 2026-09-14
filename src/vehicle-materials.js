@@ -12,27 +12,30 @@ export function refineVehicleMaterial(material,{simple=false}={}){
    m.onBeforeCompile=shader=>{
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vVehicleFinish;').replace('#include <begin_vertex>','#include <begin_vertex>\nvVehicleFinish = position;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vVehicleFinish;').replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      vec3 finishPhase = vVehicleFinish * vec3(148.0, 173.0, 157.0);
+      vec3 finishPhase = vVehicleFinish * vec3(1480.0, 1730.0, 1570.0);
       vec3 finishFootprint = fwidth(finishPhase);
       float finishVisibility = 1.0 - smoothstep(0.6, 2.4, max(finishFootprint.x, max(finishFootprint.y, finishFootprint.z)));
       float finishGrain = sin(finishPhase.x) * sin(finishPhase.y + 1.7) * sin(finishPhase.z + 0.8);
-      roughnessFactor = clamp(roughnessFactor + finishGrain * 0.012 * finishVisibility, 0.15, 1.0);
+      roughnessFactor = clamp(roughnessFactor + finishGrain * 0.008 * finishVisibility, 0.15, 1.0);
     `).replace('#include <clearcoat_normal_fragment_maps>',`#include <clearcoat_normal_fragment_maps>
       #ifdef USE_CLEARCOAT
        // Microscopic coating relief is filtered before it can sparkle at a distance.
-       vec3 coatPhase = vVehicleFinish * vec3(420.0, 263.0, 377.0);
+       vec3 coatPhase = vVehicleFinish * vec3(4200.0, 2630.0, 3770.0);
        vec3 coatFootprint = fwidth(coatPhase);
        float coatVisibility = 1.0 - smoothstep(0.55, 2.1, max(coatFootprint.x, max(coatFootprint.y, coatFootprint.z)));
-       float coatRelief = sin(coatPhase.x + sin(coatPhase.y)) * sin(coatPhase.z + sin(coatPhase.x * 0.51)) * 0.000035 * coatVisibility;
+       float coatReliefRaw = sin(coatPhase.x + sin(coatPhase.y)) * sin(coatPhase.z + sin(coatPhase.x * 0.51)) * 0.0000035;
        vec3 coatDx = dFdx(-vViewPosition), coatDy = dFdy(-vViewPosition);
        vec3 coatRx = cross(coatDy, clearcoatNormal), coatRy = cross(clearcoatNormal, coatDx);
        float coatDet = dot(coatDx, coatRx);
-       vec2 coatGradient = vec2(dFdx(coatRelief), dFdy(coatRelief));
-       if (abs(coatDet) > 1e-12) clearcoatNormal = normalize(abs(coatDet) * clearcoatNormal - sign(coatDet) * (coatGradient.x * coatRx + coatGradient.y * coatRy));
+       // Differentiate raw relief before footprint filtering: derivatives of fwidth are undefined.
+       vec2 coatGradient = vec2(dFdx(coatReliefRaw), dFdy(coatReliefRaw)) * coatVisibility;
+       vec3 coatPerturbed = abs(coatDet) * clearcoatNormal - sign(coatDet) * (coatGradient.x * coatRx + coatGradient.y * coatRy);
+       float coatLength2 = dot(coatPerturbed, coatPerturbed);
+       if (abs(coatDet) > 1e-12 && coatLength2 > 1e-20) clearcoatNormal = coatPerturbed * inversesqrt(coatLength2);
       #endif
     `);
    };
-   m.customProgramCacheKey=()=> 'vehicle-paint-finish-v2';
+   m.customProgramCacheKey=()=> 'vehicle-paint-finish-v3';
   }
  }else if(m.name==='Window glass'){
   // Thin automotive glazing preserves PBR reflection energy without an extra scene render.

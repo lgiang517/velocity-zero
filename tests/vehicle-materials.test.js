@@ -10,8 +10,10 @@ test('refinement touches cloned material only and owns no additional resources',
 });
 test('player finish has derivative anti-aliasing; simple cars use unmodified shaders',()=>{
  const p=new THREE.MeshPhysicalMaterial();p.name='Paint';refineVehicleMaterial(p);
- const shader={vertexShader:'#include <common>\n#include <begin_vertex>',fragmentShader:'#include <common>\n#include <roughnessmap_fragment>'};p.onBeforeCompile(shader);
- assert.ok(shader.fragmentShader.includes('fwidth(finishPhase)'));assert.ok(shader.fragmentShader.includes('0.012 * finishVisibility'));assert.ok(!shader.fragmentShader.includes('texture2D'));
+ const shader={vertexShader:'#include <common>\n#include <begin_vertex>',fragmentShader:'#include <common>\n#include <roughnessmap_fragment>\n#include <clearcoat_normal_fragment_maps>'};p.onBeforeCompile(shader);
+ assert.ok(shader.fragmentShader.includes('fwidth(finishPhase)'));assert.ok(shader.fragmentShader.includes('0.008 * finishVisibility'));
+ assert.ok(shader.fragmentShader.includes('vec2(dFdx(coatReliefRaw), dFdy(coatReliefRaw)) * coatVisibility'));
+ assert.ok(shader.fragmentShader.includes('coatLength2 > 1e-20'));assert.ok(!shader.fragmentShader.includes('dFdx(coatVisibility)'));assert.ok(!shader.fragmentShader.includes('texture2D'));
  const q=new THREE.MeshPhysicalMaterial();q.name='Paint';refineVehicleMaterial(q,{simple:true});const plain={vertexShader:'plain',fragmentShader:'plain'};q.onBeforeCompile(plain);assert.equal(plain.fragmentShader,'plain');p.dispose();q.dispose();
 });
 test('glass refinement adds no transmission and does not alter hidden interior flags',()=>{

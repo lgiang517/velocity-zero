@@ -2,6 +2,17 @@ import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 const pools=new Map();
 
+// Only exported axle empties are wheel anchors. GLTFLoader also normalizes
+// body names such as "Wheel arch rolled lip" to "Wheel_arch_rolled_lip".
+export function selectWheelAnchors(body){
+ return ['Wheel_FL','Wheel_FR','Wheel_RL','Wheel_RR'].map(name=>{
+  const anchor=body.children.find(o=>o.name===name&&!o.isMesh);
+  if(!anchor||!Number.isFinite(anchor.position.x)||Math.abs(anchor.position.x)<1e-6||Math.abs(anchor.scale.x*anchor.scale.y*anchor.scale.z)<1e-9)throw new Error(`Invalid vehicle axle anchor: ${name}`);
+  return anchor;
+ });
+}
+
+
 // Geometry uses X as the axle. The outward face is +X and meshes mirror for the other side.
 function lathe(profile,segments){
  const p=[],uv=[],ix=[];
@@ -45,6 +56,11 @@ function tireBump(){
 function build(simple){
  const seg=simple?48:96,buckets=new Map(),colors={rubber:'#24262a',dark:'#171b21',alloy:'#6f7883',cut:'#c9d0d7',rotor:'#747d83',caliper:'#b91d16'};
  function add(kind,g,color){
+  // The caliper wraps the rotor behind the spoke backs; it must not intersect
+  // a rotating branch at any wheel angle. Preserve the axle and tire envelope.
+  if(kind==='caliper')g.translate(-.040,0,0);
+  // A 21-inch class wheel inside the preserved 0.78 m tire, with a real sidewall.
+  if(kind!=='rubber')g.scale(1,kind==='rotor'?.7812:.84,kind==='rotor'?.7812:.84);
   if(simple&&(kind==='cut'||kind==='rotor'))kind='alloy';
   if(g.index){const old=g;g=old.toNonIndexed();old.dispose();}
   if(!g.getAttribute('normal'))g.computeVertexNormals();
@@ -53,15 +69,15 @@ function build(simple){
   const c=new THREE.Color(color||colors[kind]),a=new Float32Array(count*3);for(let i=0;i<count;i++){a[i*3]=c.r;a[i*3+1]=c.g;a[i*3+2]=c.b;}
   g.setAttribute('color',new THREE.BufferAttribute(a,3));if(!buckets.has(kind))buckets.set(kind,[]);buckets.get(kind).push(g);
  }
- add('rubber',lathe([[-.137,.303],[-.138,.337],[-.127,.358],[-.094,.372],[-.065,.375],[.065,.375],[.094,.372],[.127,.358],[.138,.337],[.137,.303]],seg));
+ add('rubber',lathe([[-.137,.251],[-.138,.282],[-.130,.326],[-.094,.369],[-.065,.375],[.065,.375],[.094,.369],[.130,.326],[.138,.282],[.137,.251]],seg));
  add('dark',annulus(.132,.291,.309,.254,seg));
  add('cut',lathe([[.135,.299],[.148,.303],[.151,.310],[.145,.315],[.136,.313]],seg));
  add('alloy',annulus(-.128,.294,.31,.01,seg));
  // Fine raised sidewall moulding stays under the unchanged 0.375 m outer radius.
- for(const r of[.331,.349])add('rubber',lathe([[.137,r-.001],[.139,r],[.137,r+.001]],seg));
+ for(const [r,x]of[[.284,.1375],[.318,.1314]])add('rubber',lathe([[x,r-.001],[x+.0015,r],[x,r+.001]],seg));
  if(!simple){
   for(let i=0;i<60;i++){
-   const a=i*Math.PI*2/60,g=new THREE.BoxGeometry(.0015,.009,.0022);g.rotateX(a);g.translate(.137,Math.cos(a)*.343,Math.sin(a)*.343);add('rubber',g,'#323439');
+   const a=i*Math.PI*2/60,g=new THREE.BoxGeometry(.0015,.009,.0022);g.rotateX(a);g.translate(.1345,Math.cos(a)*.304,Math.sin(a)*.304);add('rubber',g,'#323439');
   }
  }
  // Five sculpted Y spokes, each with a concave stem and two swept, bevelled branches.

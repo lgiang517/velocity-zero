@@ -21,3 +21,16 @@ test('driver camera stays in the same chassis position through slopes and mode c
   for(let i=0;i<3;i++){rig.update(1/60,car,p,road,'race',0,()=>0);rig.update(1/60,car,p,road,'race',1,()=>0);const local=root.worldToLocal(camera.position.clone());assert.ok(local.distanceTo(new THREE.Vector3(.35,1.03,-.40))<1e-10);assert.equal(camera.fov,67);assert.ok(car.cockpit.visible);}
  }
 });
+
+test('close orbit keeps the whole vehicle in frame from both ends, sides and portrait views',()=>{
+ const root=new THREE.Group(),car={root,body:{},setInterior(){}},player={s:45,yaw:0};
+ const road={heading:0,right:new THREE.Vector3(1,0,0),tan:new THREE.Vector3(0,0,1)};
+ for(const aspect of[1.5,390/844,844/390])for(const yaw of[0,.72,Math.PI/2,Math.PI,-.72])for(const pitch of[.18,.62,1.15]){
+  const camera=new THREE.PerspectiveCamera(58,aspect,.1,10000),rig=new DrivingCamera(camera);
+  Object.assign(rig.orbit,{yaw,pitch,distance:3.4});rig.update(1/60,car,player,road,'race',0,()=>-10);camera.updateMatrixWorld(true);
+  for(const x of[-1.10,1.10])for(const y of[.10,1.45])for(const z of[-2.45,2.45]){
+   const projected=new THREE.Vector3(x,y,z).project(camera);
+   assert.ok(Math.abs(projected.x)<.94&&Math.abs(projected.y)<.94,`car clipped: aspect=${aspect}, yaw=${yaw}, pitch=${pitch}, point=${projected.toArray()}`);
+  }
+ }
+});

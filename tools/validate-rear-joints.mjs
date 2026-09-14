@@ -1,18 +1,30 @@
 import * as THREE from 'three';
 
+const shoulderNames=new Set(['Lux continuous body','Continuous canopy shoulder transition','Rear deck','Body side left','Body side right','Canopy sill left','Canopy sill right']);
+
 function sampleLayers(skins,widths,startZ,rows,step){
- const samples=[],overlaps=[];
+ const samples=[],overlaps=[],internalReturns=[];
  for(const side of[-1,1])for(const width of widths)for(let row=0;row<rows;row++){
   const x=side*width,z=startZ-row*step,ray=new THREE.Ray(new THREE.Vector3(x,1.5,z),new THREE.Vector3(0,-1,0)),hits=[];
   for(const skin of skins)for(let i=0;i<skin.indices.length;i+=3){
    const point=ray.intersectTriangle(skin.points[skin.indices[i]],skin.points[skin.indices[i+1]],skin.points[skin.indices[i+2]],true,new THREE.Vector3());
-   if(point&&point.y>.68&&point.y<1.15)hits.push({y:point.y,name:skin.name});
+   if(point&&point.y>.68&&point.y<1.15){
+    const a=skin.points[skin.indices[i]],b=skin.points[skin.indices[i+1]],c=skin.points[skin.indices[i+2]],normal=b.clone().sub(a).cross(c.clone().sub(a)).normalize();
+    hits.push({y:point.y,name:skin.name,normal:normal.toArray()});
+   }
   }
   hits.sort((a,b)=>b.y-a.y);
-  const layers=hits.filter((hit,index)=>index===0||Math.abs(hit.y-hits[index-1].y)>.0001);
+  // A closed rear bumper has a front-facing (+Z) internal return under
+  // the deck. It is not another outward skin. Never exempt an upward
+  // deck duplicate, the bumper's rear-facing exterior, or a return above it.
+  const exterior=hits.filter(hit=>{
+   const backing=hit.name==='Rear bumper'&&hit.normal[2]>0&&hits.some(top=>top.y>hit.y&&shoulderNames.has(top.name));
+   if(backing)internalReturns.push({x,z,...hit});return !backing;
+  });
+  const layers=exterior.filter((hit,index)=>index===0||Math.abs(hit.y-exterior[index-1].y)>.0001);
   const sample={x,z,layers};samples.push(sample);if(layers.length>1)overlaps.push(sample);
  }
- return {sampled:samples.length,covered:samples.filter(s=>s.layers.length>0).length,overlaps,samples};
+ return {sampled:samples.length,covered:samples.filter(s=>s.layers.length>0).length,overlaps,internalReturns,samples};
 }
 
 /** Sample the known rear-quarter cover intersections. Back-face culling excludes
@@ -26,7 +38,7 @@ export function rearSkinLayerReport(report) {
 /** The old source return can form an upward-facing knife edge ahead of the deck
  * samples. Include the structural shoulder connector, while excluding the fixed window frame. */
 export function rearShoulderLayerReport(report) {
- const skins=report.geometries.filter(g=>g.material==='Paint'&&['Lux continuous body','Continuous canopy shoulder transition'].includes(g.name));
+ const skins=report.geometries.filter(g=>g.material==='Paint'&&shoulderNames.has(g.name));
  return sampleLayers(skins,[.91,.92,.94,.95,.96,.97,.98,1.0],-1.56,19,.01);
 }
 
@@ -34,7 +46,7 @@ export function rearShoulderLayerReport(report) {
  * connector previously sagged into a visible gutter. A top skin may bulge
  * above its endpoints, but must not dip more than 1 mm below their chord. */
 export function rearShoulderCrownReport(report) {
- const skins=report.geometries.filter(g=>g.material==='Paint'&&['Lux continuous body','Continuous canopy shoulder transition'].includes(g.name));
+ const skins=report.geometries.filter(g=>g.material==='Paint'&&shoulderNames.has(g.name));
  const result=sampleLayers(skins,[.84,.86,.88,.90,.92,.94,.96,.98],-1,2,.2),sections=[],missing=[],dips=[];
  for(const side of[-1,1])for(const z of[-1,-1.2]){
   const samples=result.samples.filter(s=>Math.sign(s.x)===side&&Math.abs(s.z-z)<1e-6).sort((a,b)=>Math.abs(a.x)-Math.abs(b.x));

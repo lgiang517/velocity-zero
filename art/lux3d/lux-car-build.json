@@ -1,209 +1,791 @@
 {
-  "generator": "Aholo Lux3D G1",
-  "taskId": 3431485,
-  "source": "art/lux3d/car-plated-source.glb",
+  "method": "Shared-boundary controlled exterior panel rebuild; retained approved Aholo canopy, axle package and plate geometry; rebuilt correctly opened mirrors",
+  "sourcePackageSha256": "0d1fdebe8f6cef7528bf73233a4af5689406ca9ad550f563e7a0e0d05a53b675",
+  "sourcePackage": "art\\lux3d\\aholo-gt-package.glb",
+  "referenceBaselineSha256": "f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da",
+  "assetSha256": "9a7a3aff48dd824b4485f8c881f9b21863a7625447cf03ae746e54533f98114b",
+  "glbBytes": 2307988,
+  "triangles": 99804,
+  "primitives": 59,
   "blender": "5.2.1 LTS",
-  "method": "Lux lower body with 12mm solid repair and exact wheel/front lamp cuts; shared-boundary canopy with wider rear C pillars and parcel shelf; single solid rear union with integrated deck and fascia, constrained shoulder fairing; fixed-window shoulder connection fused into isolated closed upper sides and shaped by monotonic vertical columns with continuous shared-point shoulder normals, clean tail bar and hollow exhaust; low fitted bonnet; full black wheel housings",
-  "uniformScale": 0.96875,
-  "triangles": 74268,
-  "primitives": 45,
-  "materials": [
-    "Graphite",
-    "Paint",
-    "Cabin lining",
-    "Alloy",
-    "Plate",
-    "Headlight",
-    "Glass",
-    "Tail",
-    "Rear window demister",
-    "Exhaust brushed alloy",
-    "Window glass"
-  ],
-  "glbBytes": 2140024,
-  "assetSha256": "f36cc7ea33220924f411738476ee6b6f8e00019d2a0d767c0308db7d1c5747da",
-  "rearRepair": {
-    "cutLowerZ": -1.55,
-    "reconstructionFrontZ": -1.35,
-    "fullCrossSectionZ": -1.53,
-    "crossSectionMarginM": 0.018,
-    "sourceBoundaryVertices": 177,
-    "outerBoundaryVertices": 128,
-    "loftSections": 38,
-    "singleExternalShell": true,
-    "separateDeckOrFascia": false,
-    "solidBooleanUnion": true,
-    "retainsFrontBodyAndWheelPivots": true,
-    "shoulderFairing": {
-      "vertices": 420,
-      "iterations": 42,
-      "factor": 0.72,
-      "maxDisplacementM": 0.12047545837822246,
-      "wheelArchLockM": 0.003
-    },
-    "shoulderConnection": {
-      "method": "outer Paint horizontal first hit; fixed window upper edge",
-      "fullContactZ": [
-        -0.8,
+  "assembly": {
+    "version": 1,
+    "coordinateSpace": "vehicle-local-game-xyz",
+    "units": "m",
+    "windscreenLower": [
+      [
+        -0.83,
+        0.9199999999999999,
+        0.8
+      ],
+      [
+        -0.778125,
+        0.92423828125,
+        0.8
+      ],
+      [
+        -0.72625,
+        0.9282031249999999,
+        0.8
+      ],
+      [
+        -0.674375,
+        0.93189453125,
+        0.8
+      ],
+      [
+        -0.6224999999999999,
+        0.9353125,
+        0.8
+      ],
+      [
+        -0.5706249999999999,
+        0.9384570312499999,
+        0.8
+      ],
+      [
+        -0.5187499999999999,
+        0.941328125,
+        0.8
+      ],
+      [
+        -0.466875,
+        0.9439257812499999,
+        0.8
+      ],
+      [
+        -0.415,
+        0.9462499999999999,
+        0.8
+      ],
+      [
+        -0.363125,
+        0.94830078125,
+        0.8
+      ],
+      [
+        -0.31124999999999997,
+        0.950078125,
+        0.8
+      ],
+      [
+        -0.25937499999999997,
+        0.95158203125,
+        0.8
+      ],
+      [
+        -0.2075,
+        0.9528125,
+        0.8
+      ],
+      [
+        -0.15562499999999999,
+        0.95376953125,
+        0.8
+      ],
+      [
+        -0.10375,
+        0.954453125,
+        0.8
+      ],
+      [
+        -0.051875,
+        0.95486328125,
+        0.8
+      ],
+      [
+        0.0,
+        0.955,
+        0.8
+      ],
+      [
+        0.051875,
+        0.95486328125,
+        0.8
+      ],
+      [
+        0.10375,
+        0.954453125,
+        0.8
+      ],
+      [
+        0.15562499999999999,
+        0.95376953125,
+        0.8
+      ],
+      [
+        0.2075,
+        0.9528125,
+        0.8
+      ],
+      [
+        0.25937499999999997,
+        0.95158203125,
+        0.8
+      ],
+      [
+        0.31124999999999997,
+        0.950078125,
+        0.8
+      ],
+      [
+        0.363125,
+        0.94830078125,
+        0.8
+      ],
+      [
+        0.415,
+        0.9462499999999999,
+        0.8
+      ],
+      [
+        0.466875,
+        0.9439257812499999,
+        0.8
+      ],
+      [
+        0.5187499999999999,
+        0.941328125,
+        0.8
+      ],
+      [
+        0.5706249999999999,
+        0.9384570312499999,
+        0.8
+      ],
+      [
+        0.6224999999999999,
+        0.9353125,
+        0.8
+      ],
+      [
+        0.674375,
+        0.93189453125,
+        0.8
+      ],
+      [
+        0.72625,
+        0.9282031249999999,
+        0.8
+      ],
+      [
+        0.778125,
+        0.92423828125,
+        0.8
+      ],
+      [
+        0.83,
+        0.9199999999999999,
+        0.8
+      ]
+    ],
+    "windscreenUpper": [
+      [
+        -0.68,
+        1.3350000000000002,
+        0.035
+      ],
+      [
+        -0.6375000000000001,
+        1.33923828125,
+        0.035
+      ],
+      [
+        -0.5950000000000001,
+        1.343203125,
+        0.035
+      ],
+      [
+        -0.5525,
+        1.34689453125,
+        0.035
+      ],
+      [
+        -0.51,
+        1.3503125,
+        0.035
+      ],
+      [
+        -0.4675,
+        1.35345703125,
+        0.035
+      ],
+      [
+        -0.42500000000000004,
+        1.356328125,
+        0.035
+      ],
+      [
+        -0.3825,
+        1.3589257812500002,
+        0.035
+      ],
+      [
+        -0.34,
+        1.36125,
+        0.035
+      ],
+      [
+        -0.29750000000000004,
+        1.3633007812500002,
+        0.035
+      ],
+      [
+        -0.255,
+        1.3650781250000001,
+        0.035
+      ],
+      [
+        -0.21250000000000002,
+        1.36658203125,
+        0.035
+      ],
+      [
+        -0.17,
+        1.3678125,
+        0.035
+      ],
+      [
+        -0.1275,
+        1.3687695312500001,
+        0.035
+      ],
+      [
+        -0.085,
+        1.3694531250000002,
+        0.035
+      ],
+      [
+        -0.0425,
+        1.36986328125,
+        0.035
+      ],
+      [
+        0.0,
+        1.37,
+        0.035
+      ],
+      [
+        0.0425,
+        1.36986328125,
+        0.035
+      ],
+      [
+        0.085,
+        1.3694531250000002,
+        0.035
+      ],
+      [
+        0.1275,
+        1.3687695312500001,
+        0.035
+      ],
+      [
+        0.17,
+        1.3678125,
+        0.035
+      ],
+      [
+        0.21250000000000002,
+        1.36658203125,
+        0.035
+      ],
+      [
+        0.255,
+        1.3650781250000001,
+        0.035
+      ],
+      [
+        0.29750000000000004,
+        1.3633007812500002,
+        0.035
+      ],
+      [
+        0.34,
+        1.36125,
+        0.035
+      ],
+      [
+        0.3825,
+        1.3589257812500002,
+        0.035
+      ],
+      [
+        0.42500000000000004,
+        1.356328125,
+        0.035
+      ],
+      [
+        0.4675,
+        1.35345703125,
+        0.035
+      ],
+      [
+        0.51,
+        1.3503125,
+        0.035
+      ],
+      [
+        0.5525,
+        1.34689453125,
+        0.035
+      ],
+      [
+        0.5950000000000001,
+        1.343203125,
+        0.035
+      ],
+      [
+        0.6375000000000001,
+        1.33923828125,
+        0.035
+      ],
+      [
+        0.68,
+        1.3350000000000002,
+        0.035
+      ]
+    ],
+    "hoodRear": [
+      [
+        -0.78,
+        0.9234359342631352,
+        0.84
+      ],
+      [
+        -0.7312500000000001,
+        0.9271789598292551,
+        0.84
+      ],
+      [
+        -0.6825,
+        0.9306804998749802,
+        0.84
+      ],
+      [
+        -0.63375,
+        0.9339405544003104,
+        0.84
+      ],
+      [
+        -0.585,
+        0.9369591234052459,
+        0.84
+      ],
+      [
+        -0.53625,
+        0.9397362068897864,
+        0.84
+      ],
+      [
+        -0.48750000000000004,
+        0.9422718048539321,
+        0.84
+      ],
+      [
+        -0.43875000000000003,
+        0.944565917297683,
+        0.84
+      ],
+      [
+        -0.39,
+        0.9466185442210392,
+        0.84
+      ],
+      [
+        -0.34125,
+        0.9484296856240004,
+        0.84
+      ],
+      [
+        -0.2925,
+        0.9499993415065668,
+        0.84
+      ],
+      [
+        -0.24375000000000002,
+        0.9513275118687384,
+        0.84
+      ],
+      [
+        -0.195,
+        0.9524141967105151,
+        0.84
+      ],
+      [
+        -0.14625,
+        0.953259396031897,
+        0.84
+      ],
+      [
+        -0.0975,
+        0.9538631098328841,
+        0.84
+      ],
+      [
+        -0.04875,
+        0.9542253381134763,
+        0.84
+      ],
+      [
+        0.0,
+        0.9543460808736738,
+        0.84
+      ],
+      [
+        0.04875,
+        0.9542253381134763,
+        0.84
+      ],
+      [
+        0.0975,
+        0.9538631098328841,
+        0.84
+      ],
+      [
+        0.14625,
+        0.953259396031897,
+        0.84
+      ],
+      [
+        0.195,
+        0.9524141967105151,
+        0.84
+      ],
+      [
+        0.24375000000000002,
+        0.9513275118687384,
+        0.84
+      ],
+      [
+        0.2925,
+        0.9499993415065668,
+        0.84
+      ],
+      [
+        0.34125,
+        0.9484296856240004,
+        0.84
+      ],
+      [
+        0.39,
+        0.9466185442210392,
+        0.84
+      ],
+      [
+        0.43875000000000003,
+        0.944565917297683,
+        0.84
+      ],
+      [
+        0.48750000000000004,
+        0.9422718048539321,
+        0.84
+      ],
+      [
+        0.53625,
+        0.9397362068897864,
+        0.84
+      ],
+      [
+        0.585,
+        0.9369591234052459,
+        0.84
+      ],
+      [
+        0.63375,
+        0.9339405544003104,
+        0.84
+      ],
+      [
+        0.6825,
+        0.9306804998749802,
+        0.84
+      ],
+      [
+        0.7312500000000001,
+        0.9271789598292551,
+        0.84
+      ],
+      [
+        0.78,
+        0.9234359342631352,
+        0.84
+      ]
+    ],
+    "rearWindowLower": [
+      [
+        -0.84,
+        0.9199999999999999,
         -1.7
       ],
-      "transitionZ": [
-        -0.55,
-        -0.8
+      [
+        -0.7875,
+        0.92423828125,
+        -1.7
       ],
-      "heightStartM": 0.902,
-      "heightEndM": 0.87,
-      "subdivisionPassLimit": 10,
-      "constructionBlenderEdgeGapLimitM": 0.0005,
-      "constructionBlenderMaxSampledEdgeGapM": 0.00019552856974769384,
-      "note": "curve-fit construction measurement before solid union; not an exported assembly-gap result",
-      "stationCount": 249
+      [
+        -0.735,
+        0.9282031249999999,
+        -1.7
+      ],
+      [
+        -0.6825,
+        0.93189453125,
+        -1.7
+      ],
+      [
+        -0.63,
+        0.9353125,
+        -1.7
+      ],
+      [
+        -0.5775,
+        0.9384570312499999,
+        -1.7
+      ],
+      [
+        -0.525,
+        0.941328125,
+        -1.7
+      ],
+      [
+        -0.4725,
+        0.9439257812499999,
+        -1.7
+      ],
+      [
+        -0.42,
+        0.9462499999999999,
+        -1.7
+      ],
+      [
+        -0.3675,
+        0.94830078125,
+        -1.7
+      ],
+      [
+        -0.315,
+        0.950078125,
+        -1.7
+      ],
+      [
+        -0.2625,
+        0.95158203125,
+        -1.7
+      ],
+      [
+        -0.21,
+        0.9528125,
+        -1.7
+      ],
+      [
+        -0.1575,
+        0.95376953125,
+        -1.7
+      ],
+      [
+        -0.105,
+        0.954453125,
+        -1.7
+      ],
+      [
+        -0.0525,
+        0.95486328125,
+        -1.7
+      ],
+      [
+        0.0,
+        0.955,
+        -1.7
+      ],
+      [
+        0.0525,
+        0.95486328125,
+        -1.7
+      ],
+      [
+        0.105,
+        0.954453125,
+        -1.7
+      ],
+      [
+        0.1575,
+        0.95376953125,
+        -1.7
+      ],
+      [
+        0.21,
+        0.9528125,
+        -1.7
+      ],
+      [
+        0.2625,
+        0.95158203125,
+        -1.7
+      ],
+      [
+        0.315,
+        0.950078125,
+        -1.7
+      ],
+      [
+        0.3675,
+        0.94830078125,
+        -1.7
+      ],
+      [
+        0.42,
+        0.9462499999999999,
+        -1.7
+      ],
+      [
+        0.4725,
+        0.9439257812499999,
+        -1.7
+      ],
+      [
+        0.525,
+        0.941328125,
+        -1.7
+      ],
+      [
+        0.5775,
+        0.9384570312499999,
+        -1.7
+      ],
+      [
+        0.63,
+        0.9353125,
+        -1.7
+      ],
+      [
+        0.6825,
+        0.93189453125,
+        -1.7
+      ],
+      [
+        0.735,
+        0.9282031249999999,
+        -1.7
+      ],
+      [
+        0.7875,
+        0.92423828125,
+        -1.7
+      ],
+      [
+        0.84,
+        0.9199999999999999,
+        -1.7
+      ]
+    ],
+    "panelThickness": {
+      "hood": 0.008,
+      "body": 0.012,
+      "cowl": 0.014
     },
-    "shoulderAssembly": {
-      "method": "isolate closed upper side volumes, union inward shoulder solid, remove temporary caps and weld to retained body on the same cut planes",
-      "isolationGame": {
-        "rearOfZ": -0.5,
-        "aboveY": 0.82,
-        "outsideAbsX": 0.78
+    "roles": {
+      "Driver_hood": {
+        "driverVisibleExterior": true
       },
-      "stripThicknessM": 0.02,
-      "stripStartsZ": -0.55,
-      "seamWeldM": 0.000004,
-      "operands": [
-        {
-          "side": -1,
-          "operandBoundary": 0,
-          "operandNonmanifold": 0,
-          "unionBoundary": 0,
-          "unionNonmanifold": 0
-        },
-        {
-          "side": 1,
-          "operandBoundary": 0,
-          "operandNonmanifold": 0,
-          "unionBoundary": 0,
-          "unionNonmanifold": 0
-        }
-      ],
-      "independentRearStripRemoved": true
-    },
-    "finalShoulderShape": {
-      "columnMappingVertexCount": 7666,
-      "columnMappingMinDeltaM": -0.025480023878279856,
-      "columnMappingMaxDeltaM": 0.031975669860839884,
-      "footMappingVertexCount": 243,
-      "footMappingMaxDeltaM": 0.022373497486114502,
-      "rawBoundary": 11,
-      "rawNonmanifold": 40,
-      "localBoundary": 0,
-      "localNonmanifold": 0,
-      "method": "20mm local X/Z section refinement followed by strictly monotonic vertical column mapping; 0.82m lower cut fixed, 0.92m sill fixed, ends eased to retained body; final C-foot undercut compressed monotonically",
-      "sectionStepM": 0.02,
-      "lowerFixedY": 0.82,
-      "sillFixedY": 0.92,
-      "gameZRange": [
-        -0.5,
-        -1.87
-      ],
-      "inheritedCustomNormalsRemoved": true
-    },
-    "externalPaintRestoredFaces": 326,
-    "footMicroscopicCleanup": {
-      "before": [
-        30394,
-        36998
-      ],
-      "after": [
-        30393,
-        36997
-      ],
-      "rawBoundary": 11,
-      "rawNonmanifold": 40,
-      "localBoundary": 0,
-      "localNonmanifold": 0
-    },
-    "rearFacingExteriorCapPaint": {
-      "faces": 10,
-      "gameZRange": [
-        -1.66,
-        -1.73
-      ],
-      "method": "FrontSide visibility from rear and both rear quarters; exterior end-cap faces assigned Paint before shared-point normals"
-    },
-    "continuousShoulderNormals": {
-      "method": "analytic derivatives of the constrained shoulder profile, blended into retained body; coincident Paint corners use a common unit normal",
-      "affectedCorners": 23711,
-      "positionQuantizationM": 0.000001,
-      "normalMatchGroups": 6282
-    },
-    "runtimeWheelMeshesOmitted": [
-      "Wheel_FR generated mesh",
-      "Wheel_RR generated mesh",
-      "Wheel_FL generated mesh",
-      "Wheel_RL generated mesh"
-    ]
-  },
-  "wheelNodes": [
-    {
-      "extras": {
-        "tireRadius": 0.39040625,
-        "tireWidth": 0.2325
+      "Driver_front_structure": {
+        "driverVisibleExterior": true
       },
-      "name": "Wheel_FL",
-      "translation": [
-        0.871874988079071,
-        0.39701804518699646,
-        1.3882187604904175
+      "Driver_cowl": {
+        "driverVisibleExterior": true
+      },
+      "Driver front side left": {
+        "driverVisibleExterior": true
+      },
+      "Driver front side right": {
+        "driverVisibleExterior": true
+      },
+      "Window windscreen": {
+        "driverVisibleExterior": true
+      },
+      "Window left": {
+        "driverVisibleExterior": true
+      },
+      "Window right": {
+        "driverVisibleExterior": true
+      },
+      "exhaustInterior": [
+        "Exhaust interior left",
+        "Exhaust interior right"
       ]
     },
-    {
-      "extras": {
-        "tireRadius": 0.39040625,
-        "tireWidth": 0.2325
+    "exhaustAxes": [
+      {
+        "center": [
+          -0.68,
+          0.355,
+          -2.3122485207100594
+        ],
+        "direction": [
+          0,
+          0,
+          1
+        ]
       },
-      "name": "Wheel_FR",
-      "translation": [
-        -0.871874988079071,
-        0.39701804518699646,
-        1.3882187604904175
-      ]
-    },
-    {
-      "extras": {
-        "tireRadius": 0.38769375,
-        "tireWidth": 0.2325
+      {
+        "center": [
+          0.68,
+          0.355,
+          -2.3122485207100594
+        ],
+        "direction": [
+          0,
+          0,
+          1
+        ]
+      }
+    ],
+    "fixedCorners": {
+      "left": {
+        "aPillarFoot": [
+          -0.83,
+          0.92,
+          0.8
+        ],
+        "cowlOuter": [
+          -0.83,
+          0.92,
+          0.8
+        ],
+        "doorFrontUpper": [
+          -0.835,
+          0.852,
+          0.622
+        ],
+        "doorFrontLower": [
+          -0.835,
+          0.23,
+          0.622
+        ]
       },
-      "name": "Wheel_RL",
-      "translation": [
-        0.871874988079071,
-        0.3902367949485779,
-        -1.3388124704360962
-      ]
-    },
-    {
-      "extras": {
-        "tireRadius": 0.38769375,
-        "tireWidth": 0.2325
-      },
-      "name": "Wheel_RR",
-      "translation": [
-        -0.871874988079071,
-        0.3902367949485779,
-        -1.3388124704360962
-      ]
+      "right": {
+        "aPillarFoot": [
+          0.83,
+          0.92,
+          0.8
+        ],
+        "cowlOuter": [
+          0.83,
+          0.92,
+          0.8
+        ],
+        "doorFrontUpper": [
+          0.835,
+          0.852,
+          0.622
+        ],
+        "doorFrontLower": [
+          0.835,
+          0.23,
+          0.622
+        ]
+      }
     }
-  ],
-  "driverHoodMaterials": [
-    "Paint",
-    "Cabin lining"
-  ],
-  "preview": "output/car-audit/final-{rear-quarter,rear-top,side}.jpg",
-  "sourceRebuildVerification": {
-    "source": "art/lux3d/car-plated-source.glb",
-    "positionDifferenceM": 0,
-    "triangles": 74268,
-    "primitives": 45,
-    "bytes": 2140024,
-    "passedAssetTests": 11
   }
 }

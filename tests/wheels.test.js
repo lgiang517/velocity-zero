@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {createWheelSet} from '../src/wheels.js';
+import {createWheelSet,selectWheelAnchors} from '../src/wheels.js';
 
 test('Forged wheels retain the original contact radius and mirror their outer face',()=>{
  const set=createWheelSet();
@@ -31,4 +31,29 @@ test('Wheel geometry is shared safely while cockpit visibility and disposal stay
  let disposed=0;tireA.geometry.addEventListener('dispose',()=>disposed++);
  a.setInterior(true);assert.equal(tireA.material.depthWrite,false);assert.equal(tireB.material.depthWrite,true);
  a.dispose();assert.equal(disposed,0);b.dispose();assert.equal(disposed,1);b.dispose();assert.equal(disposed,1);
+});
+
+test('Road wheel proportions retain a visible tire sidewall and keep calipers behind every spoke angle',()=>{
+ const set=createWheelSet(),wheel=set.create(),alloy=wheel.rotating.getObjectByName('alloy').geometry.attributes.position,cut=wheel.rotating.getObjectByName('cut').geometry.attributes.position,caliper=wheel.fixed.getObjectByName('caliper').geometry.attributes.position;
+ let lip=0,spokeBack=Infinity,caliperFront=-Infinity;
+ for(let i=0;i<cut.count;i++)lip=Math.max(lip,Math.hypot(cut.getY(i),cut.getZ(i)));
+ // A realistic road tire must not be a thin rubber band around a near-full-radius rim.
+ assert.ok(lip/.375>.65&&lip/.375<.75);
+ for(let i=0;i<alloy.count;i++){const r=Math.hypot(alloy.getY(i),alloy.getZ(i));if(r>.15&&r<.237)spokeBack=Math.min(spokeBack,alloy.getX(i));}
+ for(let i=0;i<caliper.count;i++)caliperFront=Math.max(caliperFront,caliper.getX(i));
+ assert.ok(spokeBack-caliperFront>.006,`caliper-to-spoke gap ${spokeBack-caliperFront}`);
+ set.dispose();
+});
+
+
+test('Wheel arch body meshes cannot become axle anchors or produce singular wheel matrices',()=>{
+ const body=new THREE.Group(),set=createWheelSet();
+ for(const [name,x,z]of[['Wheel_FL',.87,1.37],['Wheel_FR',-.87,1.37],['Wheel_RL',.87,-1.37],['Wheel_RR',-.87,-1.37]]){
+  const anchor=new THREE.Object3D();anchor.name=name;anchor.position.set(x,.39,z);body.add(anchor);
+ }
+ const arch=new THREE.Mesh(new THREE.BoxGeometry(),new THREE.MeshStandardMaterial());arch.name='Wheel_arch_rolled_lip';body.add(arch);
+ const anchors=selectWheelAnchors(body);assert.equal(anchors.length,4);assert.ok(!anchors.includes(arch));
+ try{for(const anchor of anchors){const wheel=set.create(Math.sign(anchor.position.x));anchor.add(wheel.root);body.updateMatrixWorld(true);wheel.root.traverse(o=>assert.ok(Math.abs(o.matrixWorld.determinant())>1e-9));}}
+ finally{set.dispose();arch.geometry.dispose();arch.material.dispose();}
+ anchors[0].position.x=0;assert.throws(()=>selectWheelAnchors(body),/Invalid vehicle axle anchor: Wheel_FL/);
 });
