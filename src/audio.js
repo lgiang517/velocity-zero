@@ -1,3 +1,7 @@
+export const MUSIC_TRACKS=[
+ {id:'raving-energy',title:'Raving Energy (faster)',file:'raving-energy-car-dj.mp3'},
+ {id:'cipher',title:'Cipher',file:'cipher-car-dj.mp3'},
+];
 // AbortSignal.timeout is absent in some otherwise WebAudio-capable mobile browsers.
 async function fetchAudioBytes(url,timeout){
  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
@@ -7,7 +11,7 @@ function decodeAudio(context,bytes){return new Promise((resolve,reject)=>{const 
 const audioBase=()=>import.meta.env?.BASE_URL||'/';
 /** Licensed music, one-shot ignition and short event cues. No continuous engine audio. */
 export class DriveAudio {
-  constructor(){this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.musicStatus='idle';this.musicPromise=null;this.musicElement=null;this.musicMediaNode=null;this.musicGain=null;this.musicPlayPending=null;this.musicPlayToken=0;this.musicPriming=false;this.musicPlaybackBlocked=false;this.audioStatus='idle';this.musicFailures=0;this.musicRetryAt=0;this.musicBuffer=null;this.musicSource=null;this.musicActive=false;this.musicOffset=0;this.musicStartedAt=0;this.startToken=0;this.startSource=null;this.startBuffer=null;this.startPromise=null;}
+  constructor(){this.musicTrack=MUSIC_TRACKS[0].id;this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.musicStatus='idle';this.musicPromise=null;this.musicElement=null;this.musicMediaNode=null;this.musicGain=null;this.musicPlayPending=null;this.musicPlayToken=0;this.musicPriming=false;this.musicPlaybackBlocked=false;this.audioStatus='idle';this.musicFailures=0;this.musicRetryAt=0;this.musicBuffer=null;this.musicSource=null;this.musicActive=false;this.musicOffset=0;this.musicStartedAt=0;this.startToken=0;this.startSource=null;this.startBuffer=null;this.startPromise=null;}
   async init(){
     if(this.ready){const resumed=this.resumeFromGesture();void this.loadMusic();void this.loadStart();await resumed;return;}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
@@ -68,14 +72,28 @@ export class DriveAudio {
     this.startToken++;
     if(this.startSource){const {source,gain}=this.startSource;this.startSource=null;gain.gain.value=0;source.stop();source.disconnect();gain.disconnect();}
   }
-  // Stream the six-minute MP3: do not download/decode the whole track into ~129 MB PCM.
+  setMusicTrack(id){
+    const next=MUSIC_TRACKS.find(track=>track.id===id)||MUSIC_TRACKS[0];
+    if(next.id===this.musicTrack)return this.musicTrack;
+    const wasActive=this.musicActive;this.pauseMusic();this.musicTrack=next.id;
+    this.musicOffset=0;this.musicFailures=0;this.musicRetryAt=0;this.musicPlaybackBlocked=false;
+    this.musicStatus=this.ready?'loading':'idle';
+    if(this.musicElement){
+      this.musicElement.onloadedmetadata=null;this.musicElement.src=audioBase()+'audio/'+next.file;
+      this.musicElement.currentTime=0;this.musicElement.load();
+      if(wasActive&&this.enabled){this.musicActive=true;void this.resumeFromGesture();}
+    }
+    return this.musicTrack;
+  }
+  // Reuse one media element/node when switching tracks; retain pause and mute state.
+  // Stream the DJ track without allocating a full decoded music buffer.
   loadMusic(){
     if(!this.ready)return Promise.resolve(null);
     if(this.musicElement){if(this.musicStatus==='unavailable'){this.musicStatus='loading';this.musicElement.load();}return Promise.resolve(this.musicElement);}
     const Media=globalThis.Audio||globalThis.window?.Audio;if(!Media)return Promise.resolve(null);
     const context=this.ctx,element=new Media();this.musicElement=element;
     element.preload='auto';element.loop=true;element.playsInline=true;element.setAttribute?.('playsinline','');
-    element.src=audioBase()+'audio/edm-detection-mode-kevin-macleod.mp3';
+    element.src=audioBase()+'audio/'+MUSIC_TRACKS.find(track=>track.id===this.musicTrack).file;
     this.musicMediaNode=context.createMediaElementSource(element);this.musicGain=context.createGain();this.musicGain.gain.value=.72;
     this.musicMediaNode.connect(this.musicGain);this.musicGain.connect(this.musicBus);this.musicStatus='loading';
     element.oncanplay=()=>{if(this.musicElement===element&&this.ready){if(!this.musicPlaybackBlocked&&this.musicFailures<3)this.musicStatus='ready';}};
@@ -132,7 +150,7 @@ export class DriveAudio {
   update(player,track,rivals,active,progress){
     if(!this.ready)return;const t=this.ctx.currentTime;
     this.master.gain.setTargetAtTime(this.enabled?.4:0,t,.1);
-    this.musicBus.gain.setTargetAtTime(active&&this.enabled?Math.max(0,Math.min(1,this.musicVolume))*.4:0,t,.16);
+    this.musicBus.gain.setTargetAtTime(active&&this.enabled?Math.max(0,Math.min(1,this.musicVolume))*.75:0,t,.16);
     this.updateMusic(active&&this.enabled);
     if(active&&this.enabled&&this.musicStatus==='unavailable'&&this.musicFailures<3&&Date.now()>=this.musicRetryAt)void this.loadMusic();
   }

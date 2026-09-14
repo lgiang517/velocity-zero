@@ -18,7 +18,7 @@ function cornerLateral(p,x,z){
  }
  return lateral;
 }
-test('Entire route: all three car footprints clear both actual rails at every 3 m station',()=>{
+test('Entire route: all selectable car footprints clear both actual rails at every 3 m station',()=>{
  let checked=0;
  for(const config of CARS){
   const p=new VehiclePhysics(config),h=vehicleEnvelope(config);
@@ -30,7 +30,7 @@ test('Entire route: all three car footprints clear both actual rails at every 3 
    }checked++;
   }
  }
- assert.ok(checked>120000);
+ assert.equal(checked,CARS.length*track.count*2*9);
 });
 test('Continuous rail cross-section follows every slope, turn and loop seam',()=>{
  for(const side of [-1,1]){

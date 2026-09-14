@@ -5,10 +5,11 @@ import {VehiclePhysics,DriverAI,CARS} from '../src/physics.js';
 import {CoastTrack} from '../src/track.js';
 const dt=1/120;
 function run(p,seconds,input,wet=0){for(let i=0;i<seconds/dt;i++)p.step(dt,input,{curvature:0,slope:0,wet},true);return p;}
-test('Cars accelerate continuously and retain distinct performance',()=>{
- const speeds=CARS.map(c=>run(new VehiclePhysics(c),10,{throttle:1}).u*3.6);
- assert.ok(speeds.every(s=>s>130&&s<270),speeds.join(', '));
- assert.ok(Math.max(...speeds)-Math.min(...speeds)>8,speeds.join(', '));
+test('Every selectable car accelerates continuously and reaches road speed',()=>{
+ for(const config of CARS){const p=new VehiclePhysics(config);let previous=0;
+  for(let second=0;second<10;second++){run(p,1,{throttle:1});assert.ok(p.u>previous,config.id+' stopped accelerating');previous=p.u;}
+  assert.ok(p.u*3.6>130&&p.u*3.6<270,config.id+': '+p.u*3.6);
+ }
 });
 test('Wet braking takes more road, and ABS never sends the vehicle into reverse',()=>{
  function stop(wet){const p=new VehiclePhysics();p.u=55;let ticks=0;while(p.u>.1&&ticks++<1500)p.step(dt,{brake:1},{curvature:0,slope:0,wet},true);return p;}

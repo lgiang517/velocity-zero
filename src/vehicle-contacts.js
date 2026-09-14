@@ -5,7 +5,7 @@ const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y});
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const pose=p=>({s:p.s,d:p.d,yaw:p.yaw||0});
 const unwrap=e=>e.p||e;
-export function vehicleDimensions(p){return {length:4.663*(p.config?.id==='muscle'?1.06:p.config?.id==='light'?.95:1),width:2.272*(p.config?.id==='light'?.96:1)};}
+export function vehicleDimensions(p){return {length:p.config?.length??4.726,width:p.config?.width??2.134};}
 export function captureVehiclePoses(entries){return new Map(entries.map(e=>{const p=unwrap(e);return [p,pose(p)];}));}
 function body(e){const p=unwrap(e),{length,width}=vehicleDimensions(p),im=e.kinematic?0:1/(p.config?.mass||1540);return {p,length,width,im,ii:im?12*im/(length*length+width*width):0};}
 function axes(p){const c=Math.cos(p.yaw||0),s=Math.sin(p.yaw||0);return [{x:c,y:s},{x:-s,y:c}];}

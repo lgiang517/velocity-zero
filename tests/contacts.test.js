@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {captureVehiclePoses,resolveVehicleContacts,vehicleOverlap,vehicleDimensions} from '../src/vehicle-contacts.js';
-const car=(s,d=0,u=0,yaw=0,mass=1540)=>({s,d,u,yaw,v:0,r:0,config:{id:'gt',mass}});
+const car=(s,d=0,u=0,yaw=0,mass=1540)=>({s,d,u,yaw,v:0,r:0,config:{id:'db12',mass,length:4.726,width:2.134}});
 const move=(p,dt)=>{p.s+=(p.u*Math.cos(p.yaw)-p.v*Math.sin(p.yaw))*dt;p.d+=(p.u*Math.sin(p.yaw)+p.v*Math.cos(p.yaw))*dt;p.yaw+=p.r*dt;};
 const separated=(a,b)=>assert.ok(vehicleOverlap(a,b)===null||vehicleOverlap(a,b)<.003,`remaining overlap ${vehicleOverlap(a,b)}`);
 function step(cars,dt=1/120){const previous=captureVehiclePoses(cars);for(const e of cars)move(e.p||e,dt);return resolveVehicleContacts(cars,{previous,dt});}
@@ -13,4 +13,4 @@ test('angled impact stays finite and creates rotational response',()=>{const a=c
 test('heavier car changes velocity less',()=>{const a=car(0,0,30,0,2000),b=car(4.5,0,0,0,1000);resolveVehicleContacts([a,b]);assert.ok(Math.abs((30-a.u)*2-b.u)<1e-8);separated(a,b);});
 test('sustained pushing kinematic traffic never penetrates it',()=>{const a=car(0,0,30),b=car(4.7,0,15);for(let i=0;i<600;i++){a.u+=.2;step([a,{p:b,kinematic:true}]);separated(a,b);assert.ok(a.s<b.s);}assert.equal(b.u,15);});
 test('three-car queue resolves simultaneous contacts',()=>{const cars=[car(0,0,40),car(4.4,0,10),car(8.8,0,0)];for(let i=0;i<20;i++)step(cars);separated(cars[0],cars[1]);separated(cars[1],cars[2]);assert.ok(cars[0].s<cars[1].s&&cars[1].s<cars[2].s);});
-test('body dimensions follow car appearance variants',()=>{const p=car(0);p.config.id='light';assert.equal(vehicleDimensions(p).length,4.663*.95);assert.equal(vehicleDimensions(p).width,2.272*.96);});
+test('body dimensions use the selected authored model dimensions',()=>{const p=car(0);Object.assign(p.config,{id:'gtc4lusso',length:4.921,width:2.060});assert.deepEqual(vehicleDimensions(p),{length:4.921,width:2.060});});

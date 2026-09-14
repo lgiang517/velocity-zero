@@ -3,9 +3,10 @@ const GEAR_RATIOS=[3.3,2.35,1.72,1.31,1.06,.87];
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const damp = (a, b, rate, dt) => a + (b - a) * (1 - Math.exp(-rate * dt));
 export const CARS = [
-  { id: 'gt', name: 'SOLSTICE GT', type: 'GT / ALL-WHEEL DRIVE', description: 'Planted through the corner. Relentless on the straight.', mass: 1540, hp: 560, power: 350000, drive: 'AWD', grip: 1.2, response: 18, steer: .48, wheelbase: 2.72, drag: .42, maxSpeed: 88, brake: 8, rearGrip: 1.06 },
-  { id: 'light', name: 'KAZE R', type: 'LIGHTWEIGHT / REAR-WHEEL DRIVE', description: 'A lighter touch. A livelier rear. Made for the mountain.', mass: 1080, hp: 320, power: 225000, drive: 'RWD', grip: 1.09, response: 20, steer: .56, wheelbase: 2.43, drag: .38, maxSpeed: 78, brake: 7.7, rearGrip: 1.01 },
-  { id: 'muscle', name: 'IRONWOOD V8', type: 'MUSCLE / REAR-WHEEL DRIVE', description: 'Big displacement. Heavy hands. Unmistakable character.', mass: 1840, hp: 720, power: 480000, drive: 'RWD', grip: 1.02, response: 16, steer: .43, wheelbase: 2.95, drag: .53, maxSpeed: 94, brake: 7.2, rearGrip: 1.04 },
+  // Driving values below are game tuning, not manufacturer performance claims.
+  {id:'db12',name:'ASTON MARTIN DB12',type:'GRAND TOURER / REAR-WHEEL DRIVE',description:'Sculpted grand touring. Original cockpit and four-wheel assembly.',mass:1788,hp:680,power:445000,drive:'RWD',grip:1.18,response:18,steer:.47,wheelbase:2.805,drag:.44,maxSpeed:90,brake:8.2,rearGrip:1.08,length:4.726,width:2.134,nativeCabin:true},
+  {id:'gtc4lusso',name:'FERRARI GTC4LUSSO',type:'SHOOTING BRAKE / ALL-WHEEL DRIVE',description:'Four-seat GT silhouette. Exterior model with bonnet view.',mass:1920,hp:690,power:450000,drive:'AWD',grip:1.2,response:17,steer:.46,wheelbase:2.99,drag:.46,maxSpeed:91,brake:8.1,rearGrip:1.1,length:4.921,width:2.060,nativeCabin:false},
+  {id:'f812',name:'FERRARI 812 COMPETIZIONE',type:'V12 SUPERCAR / REAR-WHEEL DRIVE',description:'Focused V12 performance. Wide stance and sculpted aero.',mass:1630,hp:830,power:510000,drive:'RWD',grip:1.22,response:19,steer:.46,wheelbase:2.721,drag:.43,maxSpeed:94,brake:8.5,rearGrip:1.08,length:4.710,width:2.155,nativeCabin:true},
 ];
 export const MODES = [
   {id:'sprint',name:'SPRINT',desc:'One coast. One rival. First to the finish.',rivals:1,laps:1,traffic:0},

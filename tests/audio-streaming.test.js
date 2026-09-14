@@ -8,7 +8,7 @@ function fixture(t){
  return {a,nodes};
 }
 test('music streams through one shared media node with unchanged gain and no PCM decode',async t=>{
- const {a,nodes}=fixture(t);await a.loadMusic();const e=a.musicElement;await a.loadMusic();assert.equal(nodes.length,1);assert.equal(e.loads,1);assert.equal(a.musicGain.gain.value,.72);assert.ok(e.src.endsWith('edm-detection-mode-kevin-macleod.mp3'));a.updateMusic(true);await tick();assert.equal(e.paused,false);assert.ok(a.musicSource);await a.dispose();assert.equal(nodes[0].disconnected,true);assert.equal(e.src,'');
+ const {a,nodes}=fixture(t);await a.loadMusic();const e=a.musicElement;await a.loadMusic();assert.equal(nodes.length,1);assert.equal(e.loads,1);assert.equal(a.musicGain.gain.value,.72);assert.ok(e.src.endsWith('raving-energy-car-dj.mp3'));a.updateMusic(true);await tick();assert.equal(e.paused,false);assert.ok(a.musicSource);await a.dispose();assert.equal(nodes[0].disconnected,true);assert.equal(e.src,'');
 });
 test('a pending context resume does not delay streaming play in the user gesture',async t=>{
  const {a}=fixture(t);a.ctx.state='suspended';a.ctx.resume=()=>new Promise(()=>{});void a.resumeFromGesture();assert.equal(a.musicElement.plays,1);assert.equal(a.musicStatus,'loading');await tick();assert.equal(a.musicElement.paused,true,'silent unlock ends when not racing');await a.dispose();
@@ -60,4 +60,24 @@ test('automatic network retries have a finite budget even if canplay fires betwe
  const loads=e.loads,plays=e.plays;e.oncanplay();assert.equal(a.musicStatus,'unavailable');a.musicRetryAt=0;for(let i=0;i<120;i++)a.update({},null,[],true,0);assert.equal(e.loads,loads);assert.equal(e.plays,plays);
  // Explicit new activation permits one fresh recovery attempt after the automatic budget.
  e.play=()=>{e.plays++;e.paused=false;return Promise.resolve();};await a.resumeFromGesture();await tick();assert.equal(a.musicFailures,0);assert.equal(a.musicStatus,'ready');assert.equal(e.loads,loads+1);await a.dispose();
+});
+
+
+test('track choice before initialization loads the selected recording only',async t=>{
+ const {a,nodes}=fixture(t);a.ready=false;a.setMusicTrack('cipher');a.ready=true;await a.loadMusic();
+ assert.ok(a.musicElement.src.endsWith('cipher-car-dj.mp3'));assert.equal(nodes.length,1);
+ a.setMusicTrack('missing');assert.equal(a.musicTrack,'raving-energy');await a.dispose();
+});
+test('switching during a pending play reuses the node and ignores old completion',async t=>{
+ const {a,nodes}=fixture(t);await a.loadMusic();const e=a.musicElement;let finish;
+ e.nextPlay=new Promise(r=>finish=r);a.updateMusic(true);
+ e.nextPlay=Promise.resolve();a.setMusicTrack('cipher');await tick();finish();await tick();
+ assert.equal(nodes.length,1);assert.equal(a.musicElement,e);assert.ok(e.src.endsWith('cipher-car-dj.mp3'));
+ assert.equal(e.currentTime,0);assert.equal(e.paused,false);assert.ok(a.musicSource);await a.dispose();
+});
+test('switching while paused or muted never starts audio',async t=>{
+ const {a,nodes}=fixture(t);await a.loadMusic();a.updateMusic(true);await tick();a.pauseMusic();
+ const e=a.musicElement,plays=e.plays;e.currentTime=48;a.setMusicTrack('cipher');
+ assert.equal(e.currentTime,0);assert.equal(e.plays,plays);assert.equal(e.paused,true);
+ a.setEnabled(false);a.setMusicTrack('raving-energy');assert.equal(e.plays,plays);assert.equal(a.enabled,false);assert.equal(nodes.length,1);await a.dispose();
 });

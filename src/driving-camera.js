@@ -40,8 +40,9 @@ export class DrivingCamera {
   }else if(view===1){
    // Transform both eye and gaze through the same chassis frame, including road grade.
    car.root.updateMatrixWorld(true);
-   eye.set(.35,1.03,-.40).applyMatrix4(car.root.matrixWorld);
-   aim.set(.35,1.03,32).applyMatrix4(car.root.matrixWorld);fov=camera.aspect<.8?82:67;
+   const driverEye=car.driverEye||[.35,1.03,-.40],frame=car.driverCameraFrame||car.root;
+   eye.fromArray(driverEye).applyMatrix4(frame.matrixWorld);
+   aim.set(driverEye[0],driverEye[1],driverEye[2]+32).applyMatrix4(frame.matrixWorld);fov=camera.aspect<.8?82:67;
   }else{
    this.heading=reset?heading:this.heading+angleDifference(heading,this.heading)*(1-Math.exp(-7*dt));
    const azimuth=this.heading+Math.PI+this.orbit.yaw;
