@@ -9,7 +9,7 @@ import {createWheelSet,selectWheelAnchors} from './wheels.js';
 import {refineVehicleMaterial,setVehicleWetness} from './vehicle-materials.js';
 import {readVehicleAssembly,createDriverExterior,createDriverGlazingMaterial} from './vehicle-assembly.js';
 // Version the public asset so an older cached GLB cannot survive a site update.
-const CAR_MODEL='solstice-lux-gt.glb?v=ba2cba438dbf';
+const CAR_MODEL='solstice-lux-gt.glb?v=052eb3e8cfd6';
 let template,seatTemplate;
 export async function loadCarModels(){
  if(template)return;

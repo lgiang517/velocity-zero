@@ -106,9 +106,16 @@ export function tailHousingFitReport(model){
    result.pass=errors.length===0;samples.push(result);if(errors.length)defects.push({id:entry.id,index,errors});
   }
  }
- const xs=samples.map(s=>s.housingPoint[0]);
- if(xs.length<9||Math.min(...xs)>-.87||Math.max(...xs)<.87)defects.push({reason:'Fit samples must include both outer lamp terminals and center'});
- return {pass:defects.length===0,defects,samples};
+ // Coverage follows the actual exported housing, not the previous styling width.
+ // Keep the physical error gates above unchanged when a legitimate redesign
+ // narrows or widens the tail. Both terminal regions and center remain mandatory.
+ const housingPoints=model.geometries.filter(g=>g.name==='Tail lamp recessed housing').flatMap(g=>g.points);
+ const box=new THREE.Box3().setFromPoints(housingPoints),width=box.max.x-box.min.x;
+ const xs=samples.filter(s=>s.actualHousing).map(s=>s.actualHousing.point[0]);
+ const center=(box.min.x+box.max.x)/2,terminalAllowance=width*.025;
+ const coverage={actualBoundsX:[box.min.x,box.max.x],sampleBoundsX:xs.length?[Math.min(...xs),Math.max(...xs)]:null,minimumSpanFraction:.95,terminalAllowanceM:terminalAllowance};
+ if(!Number.isFinite(width)||width<=0||xs.length<9||Math.min(...xs)>box.min.x+terminalAllowance||Math.max(...xs)<box.max.x-terminalAllowance||!xs.some(x=>Math.abs(x-center)<=width*.05))defects.push({reason:'Fit samples must span 95 percent of the actual housing and include both terminals and center',coverage});
+ return {pass:defects.length===0,defects,samples,coverage};
 }
 
 export function validateRealSurfacing(path){

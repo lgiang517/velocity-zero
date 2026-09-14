@@ -12,7 +12,7 @@ def smooth(t):
 
 
 def raw_width(z):
-    return (1.01 + .028*math.exp(-((z+1.35)/.65)**2)
+    return (1.01 + .068*math.exp(-((z+1.35)/.62)**2)
             + .022*math.exp(-((z-1.35)/.55)**2)
             - .035*math.exp(-(z/.68)**2)
             - .030*smooth((abs(z)-2.10)/.20))
@@ -23,7 +23,7 @@ def width(z):
     t=min(1.,max(0.,(-z-2.08)/.22))
     w0=raw_width(-2.08);e=1e-5
     m0=-.22*(raw_width(-2.08+e)-raw_width(-2.08-e))/(2*e)
-    return (2*t**3-3*t*t+1)*w0+(t**3-2*t*t+t)*m0+(-2*t**3+3*t*t)*.985
+    return (2*t**3-3*t*t+1)*w0+(t**3-2*t*t+t)*m0+(-2*t**3+3*t*t)*.965
 
 
 def cabwidth(z):
@@ -32,7 +32,7 @@ def cabwidth(z):
 
 def crown(z):
     if z <= -1.7:
-        return .955-.13*smooth((-1.7-z)/.60)
+        return .955-.070*smooth((-1.7-z)/.42)+.022*smooth((-z-2.13)/.17)
     if z <= .8:
         return .955
     return .955-.18*((z-.8)/1.5)**1.55
@@ -44,8 +44,9 @@ def shoulder_height(z):
 
 def side_x(y,z):
     u=(y-.205)/(shoulder_height(z)-.205)
-    return (width(z)-.085*(1-u)**2+.023*math.sin(math.pi*u)
-            -.025*math.exp(-((u-.38)/.23)**2)*math.exp(-(z/.95)**4))
+    waist=.055*math.exp(-((u-.40)/.23)**2)*math.exp(-((z+.16)/1.08)**4)
+    lower_tuck=.052*(1-smooth((y-.205)/.28))*smooth((-z-1.72)/.40)
+    return width(z)-.085*(1-u)**2+.023*math.sin(math.pi*u)-waist-lower_tuck
 
 
 def shoulder_x(t,z):
@@ -75,15 +76,20 @@ def top(x,z):
         t=(lo+hi)/2
         if bez(t,0)<a: lo=t
         else: hi=t
-    return bez((lo+hi)/2,1)
+    t=(lo+hi)/2
+    # Broad rear haunch: endpoint value and tangent remain common with the side.
+    haunch=.048*math.exp(-((z+1.30)/.64)**2)*smooth((z+1.70)/.30)*16*t*t*(1-t)*(1-t)
+    return bez(t,1)+haunch
 
 
 def rear_contour(x,y):
     # A restrained bumper crown, formed plate pocket and tucked lower valance.
-    crown=-.018*math.exp(-((y-.55)/.16)**2)*(1-.6*(x/1.15)**2)
-    pocket=.034*math.exp(-(x/.32)**6-((y-.535)/.105)**6)
-    tuck=.065*smooth((.42-y)/.22)*(1-.35*(x/1.05)**4)
-    return crown+pocket+tuck
+    crown=-.028*math.exp(-((y-.55)/.16)**2)*(1-.6*(x/1.15)**2)
+    pocket=.042*math.exp(-(x/.305)**8-((y-.535)/.090)**8)
+    tuck=.13*smooth((.49-y)/.285)*(1-.20*(x/1.05)**4)
+    # Retract the corner bumper beneath the muscular quarter and the lamp shelf.
+    corner=.050*math.exp(-((abs(x)-.73)/.22)**4-((y-.50)/.20)**4)
+    return crown+pocket+tuck+corner
 
 
 def deform(p):

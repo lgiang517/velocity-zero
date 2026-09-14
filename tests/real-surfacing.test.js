@@ -68,3 +68,39 @@ test('frozen 9a7a legacy mesh demonstrates an actual outer rear termination gap'
  assert.ok(nearestActualSurface(model,corner,'Rear bumper',{outer:false}).distance>.03);
  assert.equal(validateRealSurfacing(legacyPath).pass,false);
 });
+
+function housingFixture({halfWidth=.75,actualOffset=.012,declaredOffset=actualOffset}={}){
+ const geometries=[];
+ for(const [name,z]of[['Rear bumper',-2.3],['Tail lamp recessed housing',-2.3-actualOffset]]){
+  const points=[[-halfWidth,.70,z],[halfWidth,.70,z],[halfWidth,.80,z],[-halfWidth,.80,z]].map(p=>new THREE.Vector3(...p)),normals=points.map(()=>new THREE.Vector3(0,0,-1));
+  const triangles=[[0,2,1],[0,3,2]].map((ids,index)=>{const [a,b,c]=ids.map(i=>points[i]);return {ids,a,b,c,normal:new THREE.Vector3(0,0,-1),index,area:.1,box:new THREE.Box3().setFromPoints([a,b,c])};});
+  geometries.push({name,points,normals,triangles,box:new THREE.Box3().setFromPoints(points)});
+ }
+ const samples=Array.from({length:9},(_,i)=>{const x=-halfWidth+i*halfWidth/4;return {housingPoint:[x,.75,-2.3-actualOffset],bodyPoint:[x,.75,-2.3],outward:[0,0,-1],expectedOffsetM:declaredOffset};});
+ return {geometries,declaration:{surfacing:{version:1,tailHousingFit:[{id:'tail',housingPanel:'Tail lamp recessed housing',bumperPanel:'Rear bumper',samples}]}}};
+}
+test('complete narrower tail housing passes using actual mesh coverage rather than old width',()=>{
+ const report=tailHousingFitReport(housingFixture());
+ assert.ok(report.pass,JSON.stringify(report));
+ assert.deepEqual(report.coverage.actualBoundsX,[-.75,.75]);
+});
+test('missing either actual lamp terminal fails even when mounting offsets are correct',()=>{
+ for(const end of [0,8]){
+  const model=housingFixture(),s=model.declaration.surfacing.tailHousingFit[0].samples;
+  s[end]=structuredClone(s[end===0?1:7]);
+  const report=tailHousingFitReport(model);
+  assert.ok(!report.pass);
+  assert.ok(report.defects.some(d=>d.reason?.includes('both terminals and center')));
+  assert.ok(report.samples.every(s=>s.errors.length===0),'Only actual endpoint coverage should fail');
+ }
+});
+test('narrower styling does not relax the actual housing mounting-offset tolerance',()=>{
+ const report=tailHousingFitReport(housingFixture({actualOffset:.012,declaredOffset:.006}));
+ assert.ok(!report.pass);
+ assert.ok(report.defects.some(d=>d.errors?.includes('Actual housing offset disagrees with fitted rear surface')));
+});
+test('an old-sized floating housing cannot pass by declaring its displacement intentional',()=>{
+ const report=tailHousingFitReport(housingFixture({actualOffset:.047,declaredOffset:.047}));
+ assert.ok(!report.pass);
+ assert.ok(report.defects.some(d=>d.errors?.includes('Declared offset exceeds controlled recessed-housing range')));
+});
