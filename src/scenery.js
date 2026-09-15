@@ -1,4 +1,6 @@
+import {buildRoadsideBuildings} from './roadside-buildings.js';
 import * as THREE from 'three';
+import {coniferGeometry,coniferWoodGeometry,broadleafCanopyGeometry,broadleafWoodGeometry,canopyMaterial,barkMaterial} from './vegetation-trees.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TAU = Math.PI * 2;
@@ -67,234 +69,21 @@ function geometryBuilder() {
   };
 }
 
-// A connected crown carries the tree's volume. Unequal, gently twisted rings
-// describe tapering bough groups rather than a stack of isolated cones or cards.
-function pineCoreGeometry(detailed = false) {
-  const builder = geometryBuilder(), points = [], faces = [], sides = detailed ? 9 : 6;
-  const sections = detailed ? [[.20,.12],[.34,.20],[.49,.188],[.65,.143],[.81,.082],[.945,.028]] : [[.23,.225],[.33,.194],[.40,.204],[.57,.135],[.66,.143],[.82,.068],[.945,.026]];
-  sections.forEach(([height,radius], ring) => {
-    for (let i = 0; i < sides; i++) {
-      const angle = i / sides * TAU + Math.sin(ring * .83) * .19;
-      const lobe = (.84 + Math.sin(angle * 3 + ring * 1.47) * .18 + Math.cos(angle * 2 - ring * .7) * .09) * (detailed ? .59 : 1);
-      points.push([Math.cos(angle) * radius * lobe + Math.sin(height * 5) * .008, height + Math.sin(angle * 3.1 + ring) * .019, Math.sin(angle) * radius * lobe + Math.cos(height * 4) * .011]);
-    }
-  });
-  for (let ring = 0; ring < sections.length - 1; ring++) for (let i = 0; i < sides; i++) {
-    const a = ring * sides + i, b = ring * sides + (i + 1) % sides;
-    faces.push([a, a + sides, b + sides, b]);
-  }
-  const bottom = points.length;points.push([0,.20,0]);
-  const top = points.length;points.push([.004,1.035,-.007]);
-  for (let i = 0; i < sides; i++) {
-    faces.push([bottom, i, (i + 1) % sides]);
-    faces.push([top, (sections.length - 1) * sides + (i + 1) % sides, (sections.length - 1) * sides + i]);
-  }
-  const shade = point => {
-    const variation = .87 + point[1] * .18 + Math.sin(point[0] * 42 + point[2] * 39) * .07;
-    return [.13 * variation, .22 * variation, .145 * variation];
-  };
-  builder.hull(points, faces, shade);
-  if (detailed) {
-    const ico = new THREE.IcosahedronGeometry(1, 0), source = ico.attributes.position;
-    for (let tier = 0; tier < 10; tier++) for (let branch = 0; branch < 3; branch++) {
-      const taper = 1 - tier * .080;
-      const angle = branch * TAU / 3 + tier * 1.91 + Math.sin(tier*1.43+branch)*.16;
-      const irregularLength = .89 + random(tier*13+branch+846)*.25;
-      const radius = .080 * taper + .015, length = .17 * taper * irregularLength;
-      const width = .090 * taper + .015, tall = .055 * (1-tier*.06) + .010, centreY = .23 + tier * .074 + Math.sin(tier*1.89+branch*.94)*.017;
-      const tuft = [], tuftFaces = [], lookup = new Map(), corners = [];
-      for (let i = 0; i < source.count; i++) {
-        const x = source.getX(i), y = source.getY(i), z = source.getZ(i), key = `${x.toFixed(5)}:${y.toFixed(5)}:${z.toFixed(5)}`;
-        if (!lookup.has(key)) {
-          const uneven = 1 + Math.sin(x * 5 + z * 3 + tier) * .12 + Math.cos(y * 4 + branch) * .09;
-          const radial = radius + x * length * uneven, transverse = z * width * uneven;
-          lookup.set(key, tuft.length);
-          tuft.push([Math.cos(angle) * radial - Math.sin(angle) * transverse, centreY + y * tall * uneven - x * .021, Math.sin(angle) * radial + Math.cos(angle) * transverse]);
-        }
-        corners.push(lookup.get(key));if (i % 3 === 2) tuftFaces.push(corners.slice(-3));
-      }
-      builder.hull(tuft, tuftFaces, shade);
-    }
-    ico.dispose();
-  }
-  return builder.finish();
-}
-
-// Only short, needle-edged sprays sit at the outside of the solid crown. Their
-// real-world size is under 1.5 m, so individual textures never become giant leaves.
-function pineCrownGeometry() {
-  const positions = [], normals = [], uvs = [], colors = [], indices = [];
-  for (let i = 0; i < 14; i++) {
-    const tier = i < 5 ? 0 : i < 9 ? 1 : i < 12 ? 2 : 3;
-    const height = [.29,.48,.67,.84][tier], rootRadius = [.15,.13,.09,.045][tier], length = [.12,.11,.085,.055][tier];
-    const angle = i * 2.399 + tier * .42, cant = .48 * Math.sin(i * 2.1);
-    const root = new THREE.Vector3(Math.cos(angle) * rootRadius, height, Math.sin(angle) * rootRadius);
-    const direction = new THREE.Vector3(Math.cos(angle) * length,-.019,Math.sin(angle) * length);
-    const across = new THREE.Vector3(-Math.sin(angle) * Math.cos(cant),Math.sin(cant),Math.cos(angle) * Math.cos(cant));
-    const base = positions.length / 3;
-    for (const u of [0,1]) for (const edge of [-1,1]) {
-      const point = root.clone().addScaledVector(direction,u).addScaledVector(across,edge * length * .39);
-      positions.push(point.x,point.y,point.z);
-      const normal = new THREE.Vector3(point.x,.24,point.z).normalize();normals.push(normal.x,normal.y,normal.z);
-      uvs.push(u,(edge+1)/2);colors.push(.93,.97,.94);
-    }
-    indices.push(base,base+2,base+1,base+1,base+2,base+3);
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
-  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
-  geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
-  geometry.setIndex(indices);
-  return geometry;
-}
-
-function pineCoreMaterial() {
-  const mat = standard('#ffffff',.98);
-  mat.vertexColors = true;mat.envMapIntensity = .09;mat.userData.noReceiveShadow = true;
-  mat.onBeforeCompile = shader => {
-    shader.vertexShader = 'varying vec3 vFirP;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvFirP=position;');
-    shader.fragmentShader = 'varying vec3 vFirP;\n' + surfaceNoise + '\n' + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
-      float needles=coastNoise(vFirP.xy*113.)*.38+coastNoise(vFirP.yz*127.)*.34+coastNoise(vFirP.xz*149.)*.28;
-      float boughs=coastNoise(vFirP.xy*23.+vFirP.z*7.)*.5+coastNoise(vFirP.yz*21.)*.5;
-      diffuseColor.rgb*=.72+needles*.42+boughs*.20;`);
-  };
-  mat.customProgramCacheKey = () => 'coastal-fir-solid-volume-v4';
-  return mat;
-}
-
-// Native procedural rasterization avoids external image dependencies. The
-// texture contains only a twig and its needles, with fully clear space between.
-let firNeedleMap;
-function needleTexture() {
-  if (firNeedleMap) return firNeedleMap;
-  const width = 512, height = 256, pixels = new Uint8Array(width * height * 4);
-  // Colour the fully transparent texels too: mip filtering must not pull a
-  // black halo into the thin, antialiased needles around a branch silhouette.
-  for (let i = 0; i < pixels.length; i += 4) { pixels[i] = 77; pixels[i + 1] = 106; pixels[i + 2] = 82; }
-  function stroke(ax, ay, bx, by, radius, color) {
-    const dx = bx - ax, dy = by - ay, length2 = dx * dx + dy * dy;
-    const minX = Math.max(0, Math.floor(Math.min(ax, bx) - radius - 1)), maxX = Math.min(width - 1, Math.ceil(Math.max(ax, bx) + radius + 1));
-    const minY = Math.max(0, Math.floor(Math.min(ay, by) - radius - 1)), maxY = Math.min(height - 1, Math.ceil(Math.max(ay, by) + radius + 1));
-    for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
-      const t = length2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / length2)) : 0;
-      const alpha = Math.max(0, Math.min(1, radius + .65 - Math.hypot(x - ax - dx * t, y - ay - dy * t)));
-      if (alpha <= 0) continue;
-      const index = (y * width + x) * 4, old = pixels[index + 3] / 255;
-      const combined = alpha + old * (1 - alpha);
-      for (let c = 0; c < 3; c++) pixels[index + c] = (color[c] * alpha + pixels[index + c] * old * (1 - alpha)) / combined;
-      pixels[index + 3] = combined * 255;
-    }
-  }
-  const palette = [[75, 105, 72], [99, 129, 86], [120, 146, 103], [65, 93, 66], [87, 117, 80]];
-  stroke(18, 141, 490, 117, 2.1, [101, 98, 63]);
-  for (let twig = 0; twig < 24; twig++) for (const side of [-1, 1]) {
-    const t = twig / 24, x = 40 + t * 436, y = 140 - t * 22;
-    const length = (42 + Math.sin(Math.PI * t) * 47) * (.80 + random(twig + side + 402) * .29);
-    const tx = x + length * (.41 + random(twig + 829) * .18), ty = y + side * length;
-    stroke(x, y, tx, ty, .95, [100, 110, 66]);
-    for (let cluster = 0; cluster < 10; cluster++) {
-      const u = cluster / 10, px = x + (tx - x) * u, py = y + (ty - y) * u;
-      for (let needle = 0; needle < 8; needle++) {
-        const n = twig * 193 + cluster * 11 + needle + (side + 1) * 997;
-        const spread = (needle / 7 - .5) * 2.15, angle = Math.atan2(ty - y, tx - x) + spread;
-        const size = (8.5 + random(n + 407) * 8) * (1 - u * .28);
-        const ox = (random(n + 61) - .5) * 5, oy = (random(n + 27) - .5) * 4;
-        stroke(px + ox, py + oy, px + ox + Math.cos(angle) * size, py + oy + Math.sin(angle) * size, 1.0 + random(n + 26) * .55, palette[n % palette.length]);
-      }
-    }
-  }
-  const texture = new THREE.DataTexture(pixels, width, height, THREE.RGBAFormat);
-  texture.name = 'Procedural coastal fir needles';
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.generateMipmaps = true;
-  texture.minFilter = THREE.LinearMipmapLinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 4;
-  texture.needsUpdate = true;
-  firNeedleMap = texture;
-  return texture;
-}
-
-function broadleafGeometry(detailed = false) {
-  const builder = geometryBuilder();
-  const clusters = [[-.18, .62, .03, .19], [.18, .67, .01, .23], [.03, .86, -.11, .20], [-.10, .83, .17, .18], [.19, .84, .16, .16], [-.20, .77, -.12, .17], [.02, .66, -.20, .20], [.015, .99, .03, .14]];
-  clusters.forEach(([x, y, z, size], cluster) => {
-    const ico = new THREE.IcosahedronGeometry(1, detailed ? 1 : 0), a = ico.attributes.position;
-    const points = [], faces = [], lookup = new Map(), cornerIndices = [];
-    // Shared vertices produce smooth normals across every subdivided cluster.
-    for (let i = 0; i < a.count; i++) {
-      const px = a.getX(i), py = a.getY(i), pz = a.getZ(i);
-      const key = `${px.toFixed(5)}:${py.toFixed(5)}:${pz.toFixed(5)}`;
-      if (!lookup.has(key)) {
-        const irregular = 1 + Math.sin(px * 6 + pz * 4 + cluster) * .16 + Math.cos(py * 7 + cluster) * .09;
-        lookup.set(key, points.length);
-        points.push([x + px * size * irregular, y + py * size * irregular * .89, z + pz * size * irregular]);
-      }
-      cornerIndices.push(lookup.get(key));
-      if (i % 3 === 2) faces.push(cornerIndices.slice(-3));
-    }
-    builder.hull(points, faces, p => { const tint = .69 + (p[1] - .4) * .35; return [tint * .55, tint * .69, tint * .45]; });
-    ico.dispose();
-  });
-  return builder.finish();
-}
-
 function grassGeometry() {
   const builder = geometryBuilder();
   for (let i = 0; i < 6; i++) {
     const angle = i * 2.4, x = Math.cos(angle) * .17, z = Math.sin(angle) * .17;
-    const h = .45 + random(i + 7) * .5, w = .025 + random(i + 12) * .018;
-    const leanX = Math.cos(angle) * .31, leanZ = Math.sin(angle) * .31;
-    builder.hull([[x - w, 0, z], [x + w, 0, z], [x + leanX * .4 + w * .4, h * .58, z + leanZ * .4], [x + leanX, h, z + leanZ]], [[0, 1, 2], [0, 2, 3]], (p, j) => j < 2 ? [.21, .29, .12] : [.50 + i % 2 * .08, .50, .22]);
+    const h = .16 + random(i + 7) * .22, w = .008 + random(i + 12) * .007;
+    const leanX = Math.cos(angle) * .13, leanZ = Math.sin(angle) * .13;
+    builder.hull([[x - w, 0, z], [x + w, 0, z], [x + leanX * .4 + w * .4, h * .58, z + leanZ * .4], [x + leanX, h, z + leanZ]], [[0, 1, 2], [0, 2, 3]], (p, j) => j < 2 ? [.085, .13, .039] : [.25 + i % 2 * .05, .31, .085]);
   }
   return builder.finish();
 }
 
-function foliageMaterial(world, grass = false, broadleaf = false) {
-  const mat = standard('#ffffff', .95);
-  mat.vertexColors = true;
-  mat.envMapIntensity = .12;
-  if (!broadleaf) mat.userData.distanceFade = {value: new THREE.Vector2(125, 175)};
-  if (!grass && !broadleaf) {
-    mat.map = needleTexture();
-    mat.side = THREE.DoubleSide;
-    mat.alphaTest = .27;
-    mat.alphaToCoverage = true;
-    mat.transparent = false;
-    mat.depthWrite = true;
-    mat.userData.foliageDepth = new THREE.MeshDepthMaterial({depthPacking: THREE.RGBADepthPacking, map: mat.map, alphaTest: mat.alphaTest, side: THREE.DoubleSide});
-    // A leaf card has one canopy normal for both visible sides. Flipping that
-    // already volumetric normal on backfaces makes alternating black branches.
-    mat.onBeforeCompile = shader => {
-      shader.uniforms.coastFadeRange = mat.userData.distanceFade;
-      shader.vertexShader = 'uniform vec2 coastFadeRange;varying float vNeedleFade;\n' + shader.vertexShader;
-      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
-        vec3 coastOrigin=(modelMatrix*instanceMatrix*vec4(0.,0.,0.,1.)).xyz;
-        vNeedleFade=1.-smoothstep(coastFadeRange.x,coastFadeRange.y,distance(cameraPosition.xz,coastOrigin.xz));`);
-      shader.fragmentShader = 'varying float vNeedleFade;\n' + shader.fragmentShader;
-      shader.fragmentShader = shader.fragmentShader.replace('#include <alphatest_fragment>', 'diffuseColor.a*=vNeedleFade;\n#include <alphatest_fragment>');
-      shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\nnormal = normalize(vNormal);');
-    };
-    mat.emissive.set('#344d35');
-    mat.emissiveIntensity = .14;
-    mat.customProgramCacheKey = () => 'coastal-fir-distance-edges-v4';
-  }
-  if (broadleaf) {
-    mat.onBeforeCompile = shader => {
-      shader.vertexShader = 'varying vec3 vLeafP;\n' + shader.vertexShader;
-      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvLeafP=position;');
-      shader.fragmentShader = 'varying vec3 vLeafP;\n' + surfaceNoise + '\n' + shader.fragmentShader;
-      shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-        float leafDetail=coastNoise(vLeafP.xz*89.+vLeafP.y*19.);
-        float canopyShade=coastNoise(vLeafP.xz*13.+vLeafP.y*4.);
-        diffuseColor.rgb*=.75+leafDetail*.38+canopyShade*.18;`);
-    };
-    mat.customProgramCacheKey = () => 'coastal-broadleaf-detail-v2';
-  }
-  if (grass) {
+function foliageMaterial(world) {
+  const mat=standard('#ffffff',.95);mat.vertexColors=true;mat.envMapIntensity=.12;
+  mat.userData.distanceFade={value:new THREE.Vector2(125,175)};
+  {
     mat.side = THREE.DoubleSide;
     mat.onBeforeCompile = shader => {
       shader.uniforms.coastTime = world.uniforms.time;
@@ -352,7 +141,7 @@ function stoneMaterial() {
 // Coordinates are in real metres even when each instanced building has a
 // different height. Floor spacing therefore does not stretch with skyscrapers.
 function architecturalMaterial({container = false} = {}) {
-  const mat = standard(container ? '#dad4c8' : '#d2d0be', container ? .78 : .71, container ? .22 : .12);
+  const mat = standard(container ? '#dad4c8' : '#ffffff', container ? .78 : .71, container ? .22 : .12);
   if (!container) {
     mat.emissive.set('#ffdc9f');
     mat.emissiveIntensity = .05;
@@ -417,6 +206,7 @@ function placementTools(world) {
   function land(s, lateral, radius = 1, {vegetation = false} = {}) {
     const p = track.point(s, lateral, 0), near = nearestRoad(p);
     if (near.distance < 14.7 + radius) return null;
+    if (world.roadsideSites?.some(site=>Math.hypot(site.p.x-p.x,site.p.z-p.z)<site.radius+radius+1))return null;
     if (near.fraction > .896 && near.fraction < .997) return null;
     if (vegetation && near.fraction > .213 && near.fraction < .268) return null;
     p.y = world.groundHeight(p.x, p.z);
@@ -427,7 +217,7 @@ function placementTools(world) {
 }
 
 function buildVegetation(world, place) {
-  const track = world.track, pines = [], broadleaves = [], trunks = [], grass = [], rocks = [];
+  const track = world.track, pines = [], broadleaves = [], grass = [], rocks = [];
   // Uneven grove centres leave alternating near/far openings toward the bay.
   for (let i = 0; i < 1200 && pines.length < 440; i++) {
     const t = i % 8 === 0 ? .785 + random(i + 37) * .097 : .009 + random(i * 3.19) * .49;
@@ -438,15 +228,13 @@ function buildVegetation(world, place) {
     if (!p) continue;
     const angle = random(i + 214) * TAU;
     pines.push({p, x: h * (.84 + random(i + 9) * .21), y: h, z: h * (.88 + random(i + 82) * .20), ry: angle, color: pineColors[i % pineColors.length]});
-    trunks.push({p: p.clone().add(new THREE.Vector3(0, h * .35, 0)), x: h * .019, y: h * .70, z: h * .019, ry: angle});
   }
   for (let i = 0; i < 280 && broadleaves.length < 65; i++) {
     const t = i % 3 ? random(i * 1.32 + 7) * .18 : .49 + random(i + 88) * .14;
     const h = 4.7 + random(i + 711) * 5.1, side = i % 5 ? 1 : -1;
     const p = place.land(t * track.length, side * (25 + random(i + 71) * 48), h * .44, {vegetation: true});
     if (!p) continue;
-    broadleaves.push({p, x: h, y: h, z: h * .9, ry: random(i + 451) * TAU, color: ['#aaba99', '#9eb398', '#bac4a6', '#a7b8a0'][i % 4]});
-    trunks.push({p: p.clone().add(new THREE.Vector3(0, h * .28, 0)), x: h * .026, y: h * .57, z: h * .026, rz: .055 * Math.sin(i)});
+    broadleaves.push({p, x: h, y: h, z: h * .9, ry: random(i + 451) * TAU, color: ['#d1d7bf', '#c9d5b9', '#e0e3cc', '#ced6bc'][i % 4]});
   }
   for (let i = 0; i < 2100 && grass.length < 1050; i++) {
     const s = random(i * 3.71 + 10) * track.length, side = i % 4 === 0 ? -1 : 1;
@@ -463,12 +251,14 @@ function buildVegetation(world, place) {
     p.y -= radius * .22;
     rocks.push({p, x: radius * (1 + random(i + 888) * .6), y: radius * (.65 + random(i + 2) * .7), z: radius, ry: random(i + 556) * TAU, rx: .23 * Math.sin(i), color: stoneColors[i % stoneColors.length]});
   }
-  const firMaterial = pineCoreMaterial();
-  const firBatches = batch(world, 'Continuous coastal fir crowns', pineCoreGeometry(), firMaterial, pines, {trackItems: true});
-  const leafMaterial = foliageMaterial(world, false, true);
-  const leafBatches = batch(world, 'Wind-shaped broadleaf crowns', broadleafGeometry(), leafMaterial, broadleaves, {trackItems: true});
+  const firMaterial = canopyMaterial(world,'pine');
+  const firBatches = batch(world, 'Continuous coastal fir crowns', coniferGeometry(), firMaterial, pines, {trackItems: true});
+  const leafMaterial = canopyMaterial(world,'broadleaf');
+  const leafBatches = batch(world, 'Wind-shaped broadleaf crowns', broadleafCanopyGeometry(), leafMaterial, broadleaves, {trackItems: true});
   installVegetationLod(world, {pines, broadleaves, grass, firBatches, leafBatches, firMaterial, leafMaterial});
-  batch(world, 'Tree trunks', new THREE.CylinderGeometry(.46, 1, 1, 5), standard('#655540', .98), trunks);
+  const bark=barkMaterial(world);
+  batch(world,'Conifer trunk and branch structure',coniferWoodGeometry(),bark,pines);
+  batch(world,'Broadleaf trunk and branch structure',broadleafWoodGeometry(),bark,broadleaves);
   batch(world, 'Fractured coastal boulders', rockGeometry(), stoneMaterial(), rocks);
   world.sceneryStats.trees = pines.length + broadleaves.length;
   world.sceneryStats.grassClumps = grass.length;
@@ -493,22 +283,22 @@ function installVegetationLod(world, {pines, broadleaves, grass, firBatches, lea
   function pool(name, geometry, material, source, limit, shadow) {
     const mesh = new THREE.InstancedMesh(geometry, material, limit);
     mesh.name = name;mesh.count = 0;mesh.visible = false;mesh.castShadow = shadow;mesh.receiveShadow = false;
+    if(material.userData.foliageDepth)mesh.customDepthMaterial=material.userData.foliageDepth;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(limit * 3), 3).setUsage(THREE.DynamicDrawUsage);
     world.scene.add(mesh);world.sceneryStats.batches++;
     return {mesh, source, limit, selected: [], signature: ''};
   }
-  const fir = pool('Nearby fir bough clusters', pineCoreGeometry(true), firMaterial, firSource, 20, true);
-  const leaf = pool('Nearby broadleaf clusters', broadleafGeometry(true), leafMaterial, leafSource, 12, true);
-  const needles = pool('Nearby fir needle edges', pineCrownGeometry(), foliageMaterial(world), firSource, 64, false);
+  const fir = pool('Nearby fir bough clusters', coniferGeometry(true), firMaterial, firSource, 20, true);
+  const leaf = pool('Nearby broadleaf clusters', broadleafCanopyGeometry(true), leafMaterial, leafSource, 12, true);
   const tussocks = pool('Nearby dune and shoulder tussocks', grassGeometry(), foliageMaterial(world, true), grassSource, 240, false);
   const stats = world.sceneryStats;
   stats.triangles += (triangles(fir.mesh.geometry) - triangles(firBatches[0].geometry)) * fir.limit;
   stats.triangles += (triangles(leaf.mesh.geometry) - triangles(leafBatches[0].geometry)) * leaf.limit;
-  stats.triangles += triangles(needles.mesh.geometry) * needles.limit + triangles(tussocks.mesh.geometry) * tussocks.limit;
-  stats.instances += pines.length + grass.length;
+  stats.triangles += triangles(tussocks.mesh.geometry) * tussocks.limit;
+  stats.instances += grass.length;
   stats.nearFirLimit = fir.limit;stats.nearBroadleafLimit = leaf.limit;
-  stats.needleLimit = needles.limit;stats.grassLimit = tussocks.limit;stats.lodUploads = 0;
+  stats.needleLimit = 0;stats.grassLimit = tussocks.limit;stats.lodUploads = 0;
   function staticSources(meshes, source) {
     const indices = new Map(source.items.map((item, index) => [item, index]));
     return meshes.map(mesh => ({mesh, ids: mesh.userData.sourceItems.map(item => indices.get(item)), signature: ''}));
@@ -567,15 +357,13 @@ function installVegetationLod(world, {pines, broadleaves, grass, firBatches, lea
     lastPosition.copy(position);lastDirection.copy(direction);lastQuality = quality;lastProjection.copy(camera.projectionMatrix);
     projection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);frustum.setFromProjectionMatrix(projection);
     const low = quality === 'low', high = quality === 'high';
-    const needleRange = needles.mesh.material.userData.distanceFade.value, grassRange = tussocks.mesh.material.userData.distanceFade.value;
-    needleRange.set(low ? 90 : high ? 170 : 130, low ? 125 : high ? 215 : 175);
+    const grassRange = tussocks.mesh.material.userData.distanceFade.value;
     grassRange.set(low ? 65 : high ? 125 : 95, low ? 110 : high ? 200 : 160);
     if (writePool(fir, select(firSource, low ? 145 : high ? 220 : 190, low ? 12 : fir.limit))) excludeNear(staticFirs, firSource, fir.selected);
     if (writePool(leaf, select(leafSource, low ? 150 : high ? 240 : 210, low ? 6 : leaf.limit))) excludeNear(staticLeaves, leafSource, leaf.selected);
-    writePool(needles, select(firSource, needleRange.y + 5, low ? 40 : needles.limit));
     writePool(tussocks, select(grassSource, grassRange.y + 5, low ? 140 : tussocks.limit));
     stats.nearFirs = fir.mesh.count;stats.nearBroadleaves = leaf.mesh.count;
-    stats.needleTrees = needles.mesh.count;stats.visibleGrassClumps = tussocks.mesh.count;
+    stats.needleTrees = 0;stats.visibleGrassClumps = tussocks.mesh.count;
   };
   // World.update runs this before the shadow pass. Keep standalone renderers
   // correct too; unchanged camera position, direction and quality return early.
@@ -592,14 +380,20 @@ function buildCity(world, place) {
   const facadeColors = ['#c0c1ac', '#909c94', '#d0c8b3', '#a3aea4', '#7d9390'];
   // A mix of waterfront mid-rise and a smaller inland tower cluster gives the
   // city a legible skyline; real roof volumes catch the low evening sunlight.
-  for (let i = 0; i < 170 && bodies.length < 84; i++) {
+  for (let i = 0; i < 170 && bodies.length < 28; i++) {
     const t = .482 + random(i * 2.72 + 11) * .19, s = t * world.track.length;
     const side = i % 4 === 0 ? -1 : 1;
     const width = 12 + random(i + 19) * 15, depth = 14 + random(i + 197) * 17;
-    const lateral = side * (43 + random(i + 182) * 150), radius = Math.hypot(width, depth) * .52;
+    const lateral = side * (105 + random(i + 182) * 110), radius = Math.hypot(width, depth) * .52;
     const p = place.land(s, lateral, radius);
     if (!p || footprint.some(q => q.p.distanceToSquared(p) < (q.radius + radius + 4) ** 2)) continue;
-    const heading = world.track.sample(s).heading;
+    const heading = world.track.sample(s).heading-side*Math.PI/2;
+    const cornerHeights=[];
+    for(const x of[-width/2-.5,0,width/2+.5])for(const z of[-depth/2-.5,0,depth/2+.5]){const v=new THREE.Vector3(x,0,z).applyAxisAngle(UP,heading).add(p);cornerHeights.push(world.groundHeight(v.x,v.z));}
+    if(Math.max(...cornerHeights)-Math.min(...cornerHeights)>4)continue;
+    p.y=Math.max(...cornerHeights)+.12;
+    const footingHeight=p.y-Math.min(...cornerHeights)+.7;
+    stone.push({p:p.clone().add(new THREE.Vector3(0,-footingHeight/2,0)),x:width+1,y:footingHeight,z:depth+1,ry:heading,color:'#777e73'});
     const tower = side > 0 && Math.abs(lateral) > 120 && i % 3 === 0;
     const floors = tower ? 14 + Math.floor(random(i + 808) * 13) : 4 + Math.floor(random(i + 707) * 8);
     const height = floors * 3.35 + 1.4;
@@ -749,6 +543,7 @@ function buildLamps(world) {
 export function buildCoastalScenery(world) {
   world.sceneryStats = {triangles: 0, instances: 0, batches: 0, trees: 0, grassClumps: 0, buildings: 0};
   const place = placementTools(world);
+  buildRoadsideBuildings(world, place);
   buildVegetation(world, place);
   buildCity(world, place);
   buildPort(world, place);

@@ -21,6 +21,48 @@ export function addBridgeDetail(world){
  batch(scene,new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:'#cc6d39',roughness:.42,metalness:.3}),caps);
 }
 
+// Shared section vertices form one closed swept solid per side. Sampling the
+// road elevation and lateral frame removes the gaps caused by horizontal slabs.
+export function tunnelWalkwayGeometry(track,side,{start=track.length*.22,end=track.length*.26,step=1.5}={}){
+ if(![-1,1].includes(side)||!(end>start)||!(step>0))throw new Error('Invalid tunnel walkway sweep');
+ const segments=Math.ceil((end-start)/step),positions=[],uv=[],indices=[],stations=[];
+ const inner=10.3,outer=12.05,bottom=-.3,ramp=Math.min(4,(end-start)/4);
+ const low=Math.min(side*inner,side*outer),high=Math.max(side*inner,side*outer);
+ for(let i=0;i<=segments;i++){
+  const s=start+(end-start)*i/segments,q=track.sample(s);
+  const top=.04+.22*Math.min(1,(s-start)/ramp,(end-s)/ramp);
+  stations.push(s);
+  for(const [d,h] of [[low,bottom],[high,bottom],[high,top],[low,top]]){
+   const p=q.p.clone().addScaledVector(q.right,d);p.y+=h;
+   positions.push(p.x,p.y,p.z);uv.push(d,s-start);
+  }
+ }
+ for(let i=0;i<segments;i++)for(let j=0;j<4;j++){
+  const a=i*4+j,b=i*4+(j+1)%4,c=a+4,d=b+4;indices.push(a,b,c,b,d,c);
+ }
+ indices.push(0,3,2,0,2,1);
+ const last=segments*4;indices.push(last,last+1,last+2,last,last+2,last+3);
+ const geometry=new THREE.BufferGeometry();
+ geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+ geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+ geometry.setIndex(indices);geometry.computeVertexNormals();geometry.computeBoundingSphere();
+ geometry.userData={stations,side,inner,outer,bottom,ramp};return geometry;
+}
+
+function tunnelWalkwayMaterial(){
+ const material=new THREE.MeshStandardMaterial({color:'#697570',roughness:.9,flatShading:true});
+ material.onBeforeCompile=shader=>{
+  shader.vertexShader='varying vec2 vWalkway;\n'+shader.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvWalkway=uv;');
+  shader.fragmentShader='varying vec2 vWalkway;\n'+shader.fragmentShader;
+  shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+   float seamDistance=abs(mod(vWalkway.y+1.5,3.)-1.5);
+   float seam=1.-smoothstep(.009,.026,seamDistance);
+   float grain=fract(sin(dot(floor(vWalkway*85.),vec2(12.9898,78.233)))*43758.5453);
+   diffuseColor.rgb*=(.96+grain*.06)*(1.-seam*.19);`);
+ };
+ material.customProgramCacheKey=()=> 'continuous-tunnel-walkway-v1';return material;
+}
+
 export function buildDetailedTunnel(world){
  const {track,scene}=world,start=track.length*.22,end=track.length*.26,steps=96,sides=24,positions=[],uv=[],indices=[];
  for(let i=0;i<=steps;i++){
@@ -44,7 +86,7 @@ export function buildDetailedTunnel(world){
    diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.24,.30,.28)*(1.-joint*.18),tiles);`);
  };
  const shell=new THREE.Mesh(geo,concrete);shell.castShadow=true;shell.receiveShadow=true;scene.add(shell);
- const ribs=[],fixtures=[],lamps=[],walkways=[];
+ const ribs=[],fixtures=[],lamps=[];
  for(let s=start+2;s<end;s+=18){const q=track.sample(s);ribs.push({p:q.p,heading:q.heading,scale:[1,.84,1]});}
  batch(scene,new THREE.TorusGeometry(11.94,.09,5,32,Math.PI),new THREE.MeshStandardMaterial({color:'#3e4b4a',roughness:.66,metalness:.25}),ribs);
  for(let s=start+2;s<end;s+=12){const q=track.sample(s);for(const d of[-5.3,5.3]){
@@ -53,13 +95,14 @@ export function buildDetailedTunnel(world){
  }}
  batch(scene,new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:'#27393b',metalness:.5,roughness:.4}),fixtures);
  batch(scene,new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:'#fff1c9',emissive:'#ffd697',emissiveIntensity:3.6,toneMapped:false}),lamps);
+ const walkwayMaterial=tunnelWalkwayMaterial();
  for(const side of[-1,1]){
   const pipePoints=[];
   for(let i=0;i<=48;i++){const s=start+(end-start)*i/48;pipePoints.push(track.point(s,side*11.15,2.2));}
   scene.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pipePoints),96,.07,5,false),new THREE.MeshStandardMaterial({color:'#a46c3f',roughness:.42,metalness:.6})));
-  for(let s=start;s<end;s+=6){const q=track.sample(s);walkways.push({p:track.point(s,side*11,.13),heading:q.heading,scale:[1.4,.26,6.05]});}
+  const walkway=new THREE.Mesh(tunnelWalkwayGeometry(track,side,{start,end}),walkwayMaterial);
+  walkway.name='Continuous tunnel walkway '+side;walkway.castShadow=true;walkway.receiveShadow=true;scene.add(walkway);
  }
- batch(scene,new THREE.BoxGeometry(1,1,1),new THREE.MeshStandardMaterial({color:'#697570',roughness:.85}),walkways);
  for(const s of[start,end]){
   const q=track.sample(s),ring=new THREE.Mesh(new THREE.TorusGeometry(12,.67,8,40,Math.PI),new THREE.MeshStandardMaterial({color:'#bbc0b1',roughness:.82}));
   ring.position.copy(q.p);ring.scale.y=.84;ring.rotation.y=q.heading;ring.castShadow=true;ring.receiveShadow=true;scene.add(ring);

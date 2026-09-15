@@ -1,6 +1,6 @@
 export const MUSIC_TRACKS=[
- {id:'raving-energy',title:'Raving Energy (faster)',file:'raving-energy-car-dj.mp3'},
- {id:'cipher',title:'Cipher',file:'cipher-car-dj.mp3'},
+ {id:'xiang-zhe-hai',title:'向着海',file:'xiang-zhe-hai.mp3'},
+ {id:'wan-dao-yin-qing',title:'弯道引擎',file:'wan-dao-yin-qing.mp3'},
 ];
 // AbortSignal.timeout is absent in some otherwise WebAudio-capable mobile browsers.
 async function fetchAudioBytes(url,timeout){
@@ -86,7 +86,7 @@ export class DriveAudio {
     return this.musicTrack;
   }
   // Reuse one media element/node when switching tracks; retain pause and mute state.
-  // Stream the DJ track without allocating a full decoded music buffer.
+  // Stream the selected track without allocating a full decoded music buffer.
   loadMusic(){
     if(!this.ready)return Promise.resolve(null);
     if(this.musicElement){if(this.musicStatus==='unavailable'){this.musicStatus='loading';this.musicElement.load();}return Promise.resolve(this.musicElement);}

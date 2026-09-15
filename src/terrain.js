@@ -1,5 +1,6 @@
 import {environmentAssets} from './environment-assets.js';
 import * as THREE from 'three';
+import {createCoastalHeightTexture} from './ocean.js';
 
 // World-space materials keep ground detail consistent across long road sections.
 const noiseGLSL=`
@@ -11,10 +12,10 @@ const wave=(x,z)=>Math.sin(x*.013+Math.sin(z*.006)*2)*Math.cos(z*.019)+Math.sin(
 export function terrainMaterial({distant=false}={}){
  const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:.97,envMapIntensity:distant?.08:.15});
  mat.onBeforeCompile=shader=>{
-  if(!distant){shader.uniforms.uRockColor={value:environmentAssets.albedo};shader.uniforms.uRockNormal={value:environmentAssets.normal};shader.uniforms.uRockRough={value:environmentAssets.roughness};}
+  if(!distant){shader.uniforms.uRockColor={value:environmentAssets.albedo};shader.uniforms.uRockNormal={value:environmentAssets.normal};shader.uniforms.uRockRough={value:environmentAssets.roughness};shader.uniforms.uGrassColor={value:environmentAssets.grass?.diffuse||environmentAssets.albedo};shader.uniforms.uGrassNormal={value:environmentAssets.grass?.normal||environmentAssets.normal};}
   shader.vertexShader='varying vec3 vTerrainP;varying vec3 vTerrainN;\n'+shader.vertexShader;
   shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTerrainP=(modelMatrix*vec4(position,1.)).xyz;vTerrainN=normalize(mat3(modelMatrix)*normal);');
-  shader.fragmentShader=(distant?'':'uniform sampler2D uRockColor,uRockNormal,uRockRough;')+'varying vec3 vTerrainP;varying vec3 vTerrainN;\n'+noiseGLSL+'\n'+shader.fragmentShader;
+  shader.fragmentShader=(distant?'':'uniform sampler2D uRockColor,uRockNormal,uRockRough,uGrassColor,uGrassNormal;')+'varying vec3 vTerrainP;varying vec3 vTerrainN;\n'+noiseGLSL+'\n'+shader.fragmentShader;
   // Distant ridges occupy a few pixels: broad strata read better than several
   // triplanar texture/normal samples and high-frequency procedural grain.
   if(distant){
@@ -23,7 +24,7 @@ export function terrainMaterial({distant=false}={}){
     float broad=tnoise(p.xz*.008),strata=tnoise(vec2(p.x*.013+p.z*.009,p.y*.053));
     vec3 grass=mix(vec3(.056,.083,.049),vec3(.13,.16,.09),broad);
     vec3 stone=mix(vec3(.14,.15,.135),vec3(.27,.255,.21),strata)*(.8+broad*.3);
-    float exposed=smoothstep(.12,.49,slope+broad*.12+smoothstep(100.,360.,p.y)*.15);
+    float exposed=smoothstep(.10,.37,slope+broad*.10+smoothstep(150.,400.,p.y)*.13);
     diffuseColor.rgb=mix(grass,stone,exposed);`);
    return;
   }
@@ -33,11 +34,13 @@ export function terrainMaterial({distant=false}={}){
    float terrainDetail=1.-smoothstep(130.,300.,distance(cameraPosition,p));
    float grain=mix(.5,tnoise(p.xz*2.8),terrainDetail);
    float strata=tnoise(vec2(p.x*.07+p.z*.04,p.y*.32+mottle*2.));
-   vec3 grass=mix(vec3(.043,.069,.035),vec3(.137,.174,.087),broad);
-   grass*=.77+mottle*.39+grain*.13;
+   // Two metre scan: replace the former green-tinted rock sample. Mips and
+   // anisotropic filtering keep individual blades from shimmering at speed.
+   vec3 grassPhoto=texture2D(uGrassColor,p.xz*.5).rgb;
+   vec3 grass=grassPhoto*mix(vec3(.43,.74,.39),vec3(.70,.83,.49),smoothstep(.3,.72,broad));
+   grass*=.86+mottle*.24;
    vec3 blend=pow(abs(normalize(vTerrainN)),vec3(4.));blend/=blend.x+blend.y+blend.z;
    vec3 stone=texture2D(uRockColor,p.zy*.031).rgb*blend.x+texture2D(uRockColor,p.xz*.031).rgb*blend.y+texture2D(uRockColor,p.xy*.031).rgb*blend.z;
-   grass=mix(grass,texture2D(uRockColor,p.xz*.055).rgb*vec3(.61,.80,.49),.18);
    // Bedding and patches of warm soil break up the old uniform green slopes.
    stone*=.67+broad*.22+strata*.25;
    stone=mix(stone,stone*vec3(1.10,1.01,.85),smoothstep(.58,.79,strata)*.5);
@@ -56,11 +59,30 @@ export function terrainMaterial({distant=false}={}){
    vec3 r1=cross(sigmaY,normal),r2=cross(normal,sigmaX);
    float det=dot(sigmaX,r1);
    normal=normalize(abs(det)*normal-sign(det)*(dFdx(relief)*r1+dFdy(relief)*r2));
-   vec3 mapped=texture2D(uRockNormal,vTerrainP.xz*.031).xyz*2.-1.;
+   vec3 mapped=mix(texture2D(uGrassNormal,vTerrainP.xz*.5).xyz,texture2D(uRockNormal,vTerrainP.xz*.031).xyz,rock)*2.-1.;
    normal=normalize(normal+mat3(viewMatrix)*vec3(mapped.x,0.,mapped.y)*mix(.14,.42,rock)*terrainDetail);`);
  };
- mat.customProgramCacheKey=()=>`coast-terrain-${distant?'far':'near'}-v3`;
+ mat.customProgramCacheKey=()=>`coast-terrain-${distant?'far':'near'}-v4`;
  return mat;
+}
+
+// Baked once into the existing grid; erosion adds no per-frame geometry work.
+const ridgeHash=(x,z)=>{const n=Math.sin(x*127.1+z*311.7)*43758.5453;return n-Math.floor(n);};
+function ridgeNoise(x,z){
+ const ix=Math.floor(x),iz=Math.floor(z);let u=x-ix,v=z-iz;u=u*u*(3-2*u);v=v*v*(3-2*v);
+ const a=ridgeHash(ix,iz)*(1-u)+ridgeHash(ix+1,iz)*u;
+ return a*(1-v)+(ridgeHash(ix,iz+1)*(1-u)+ridgeHash(ix+1,iz+1)*u)*v;
+}
+export function distantRidgeHeight(x,z,across,layer){
+ const spine=ridgeNoise(x*.0012+layer*13,layer+2);
+ const shoulders=ridgeNoise(x*.0046+layer*7,z*.0005);
+ const crest=190+layer*65+spine*240+shoulders*90;
+ const warped=across+Math.sin(Math.PI*across)*(.14*(ridgeNoise(x*.002,layer*3)-.5));
+ const profile=Math.max(0,Math.sin(Math.PI*warped))**.78;
+ const drainage=1-Math.abs(2*ridgeNoise(x*.012+across*2.4,z*.0035)-1);
+ const rock=1-Math.abs(2*ridgeNoise(x*.033,z*.012)-1);
+ const crestMask=1-Math.max(0,(profile-.82)/.18)*.7;
+ return Math.max(0,profile*(crest-(drainage*85+rock*24)*crestMask));
 }
 
 // Normals are calculated on the complete original surface before splitting.
@@ -118,6 +140,8 @@ export function buildCoastalTerrain(world){
  for(let z=0;z<nz;z++)for(let x=0;x<nx;x++){
   const a=z*(nx+1)+x,b=a+nx+1;idx.push(a,b,a+1,a+1,b,b+1);
  }
+ // Reuse the rendered terrain samples so shoreline foam follows the visible coast.
+ world.coastalHeightField=createCoastalHeightTexture(pos,nx+1,nz+1,[minX,minZ,w,h]);
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
  const groundMat=terrainMaterial();
  const groundTiles=addGridTiles(world,g,nx,nz,42,55,groundMat,'Coastal ground tile',true);
@@ -133,10 +157,7 @@ export function buildCoastalTerrain(world){
   const rows=54,cols=210,positions=[],indices=[];
   for(let z=0;z<=rows;z++)for(let x=0;x<=cols;x++){
    const wx=-2600+x/cols*5900,wz=1450+layer*560+z/rows*1150;
-   const along=x/cols;
-   const crest=220+layer*80+85*Math.sin(along*16+layer)+48*Math.sin(along*31+layer*3);
-   const profile=Math.max(0,Math.sin(Math.PI*z/rows))**.9;
-   const ridge=profile*(crest+Math.sin(wx*.0032+Math.cos(wz*.003))*56+Math.sin(wx*.0071+wz*.002)*24);
+   const ridge=distantRidgeHeight(wx,wz,z/rows,layer);
    positions.push(wx,-29+Math.max(0,ridge),wz);
   }
   for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){const a=z*(cols+1)+x,b=a+cols+1;indices.push(a,b,a+1,a+1,b,b+1);}

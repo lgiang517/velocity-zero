@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import {renderQuality,setComposerSamples} from '../src/render-quality.js';
+import {renderQuality,setComposerSamples,MobileResolution} from '../src/render-quality.js';
 import {QualityBloomPass} from '../src/quality-bloom.js';
 import {SunShadows} from '../src/lighting.js';
 
@@ -40,4 +40,31 @@ test('CSM quality switching releases maps, retains material customization and up
  world.renderer={shadowMap:{enabled:false}};world.time=0;world.night=0;world.weather='clear';shadows.update();
  for(const light of shadows.csm.lights)assert.ok(light.position.distanceTo(light.target.position)>.99);
  shadows.csm.remove();shadows.csm.dispose();material.dispose();
+});
+
+
+test('large touch displays cap total pixels without changing desktop quality',()=>{
+ for(const quality of ['low','balanced','high']){
+  const budget=renderQuality(quality,{coarse:true,dpr:3,width:1366,height:1024});
+  assert.ok(1366*1024*budget.pixelRatio**2<=({low:600000,balanced:900000,high:1400000}[quality])+1);
+ }
+ assert.equal(renderQuality('high',{dpr:3,width:3840,height:2160}).pixelRatio,2);
+});
+
+test('sustained mobile load scales down with a floor; healthy frames do not oscillate',()=>{
+ const q=new MobileResolution();let changes=0;
+ for(let i=0;i<600;i++)changes+=Number(q.sample(1/30,true));
+ assert.equal(changes,2);assert.equal(q.scale,.72);
+ for(let i=0;i<900;i++)assert.equal(q.sample(1/60,true),false);
+ assert.equal(q.scale,.72);q.reset();assert.equal(q.scale,1);
+});
+
+test('mobile resolution ignores background gaps, isolated hitches and inactive screens',()=>{
+ const q=new MobileResolution();
+ for(let i=0;i<600;i++)q.sample(1/60,true);
+ q.sample(.12,true);q.sample(5,true);
+ for(let i=0;i<600;i++)q.sample(1/30,false);
+ assert.equal(q.scale,1);
+ for(let i=0;i<100;i++)q.sample(1/60,true);
+ assert.equal(q.scale,1);
 });

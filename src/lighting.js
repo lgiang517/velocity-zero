@@ -27,7 +27,7 @@ export class SunShadows {
   this.csm.updateFrustums();this.lastProjection='';
  }
  prepare(root){root.traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material]){
-  if(!(m.isMeshStandardMaterial||m.isMeshPhysicalMaterial||m.isMeshPhongMaterial)||this.materials.has(m))continue;
+  if(!(m.isMeshStandardMaterial||m.isMeshPhysicalMaterial||m.isMeshPhongMaterial||m.isMeshLambertMaterial)||this.materials.has(m))continue;
   const original=m.onBeforeCompile,cacheKey=m.customProgramCacheKey.call(m);this.csm.setupMaterial(m);const csmCompile=m.onBeforeCompile;
   m.onBeforeCompile=function(shader,renderer){original.call(this,shader,renderer);csmCompile.call(this,shader,renderer);};
   m.customProgramCacheKey=()=>cacheKey+'|sun-csm-3';m.needsUpdate=true;this.materials.add(m);

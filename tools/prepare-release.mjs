@@ -7,6 +7,7 @@ const retired=[
  'models/gt-seat.glb','models/solstice-gt.glb','models/solstice-lux-gt.glb',
  'audio/edm-detection-mode-kevin-macleod.mp3','audio/exhilarate-kevin-macleod.mp3',
  'audio/engine/ferrari-360-source.mp3',
+ 'audio/raving-energy-car-dj.mp3','audio/cipher-car-dj.mp3',
 ];
 for(const relative of retired){
  const file=resolve(root,relative);
@@ -14,5 +15,5 @@ for(const relative of retired){
  if(existsSync(file))rmSync(file);
 }
 const revision=process.env.GITHUB_SHA||execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
-writeFileSync(resolve(root,'version.json'),JSON.stringify({revision,builtAt:new Date().toISOString(),cars:['db12','gtc4lusso','f812'],colorsPerCar:5,music:['raving-energy','cipher']},null,2)+'\n');
+writeFileSync(resolve(root,'version.json'),JSON.stringify({revision,builtAt:new Date().toISOString(),cars:['db12','gtc4lusso','f812'],colorsPerCar:5,music:['xiang-zhe-hai','wan-dao-yin-qing']},null,2)+'\n');
 console.log('Current release bundle prepared: '+revision.slice(0,7));

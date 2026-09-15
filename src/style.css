@@ -95,3 +95,10 @@ html,body{width:100%;height:100%;overscroll-behavior:none}
 #paint-options{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.swatch:disabled{cursor:wait;opacity:.55}#paint-name{font-size:12px;line-height:1.4;margin:10px 0 0;color:#eee1cc;letter-spacing:.2px}
 
 @media(max-width:767px){.paint-row>.micro{flex-basis:100%;margin-bottom:5px}#paint-options{gap:12px}}
+/* Keep full-size touch targets separate when browser chrome shortens landscape. */
+@media (orientation:landscape) and (max-height:340px) and (pointer:coarse){
+  #touch-tools{left:50%;right:auto;transform:translateX(-50%);grid-template-columns:repeat(4,44px)}
+  #touch-tools .touch-zoom{display:contents}
+  #touch-tools button{width:44px;min-width:44px;padding:0}
+  .map-block{display:none}
+}

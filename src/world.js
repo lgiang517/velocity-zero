@@ -1,5 +1,5 @@
 import {loadCoastalLandmarks} from './coastal-landmarks.js';
-import {renderQuality,setComposerSamples} from './render-quality.js';
+import {renderQuality,setComposerSamples,MobileResolution} from './render-quality.js';
 import {QualityBloomPass} from './quality-bloom.js';
 import {VehicleReflections} from './vehicle-reflections.js';
 import {SunShadows} from './lighting.js';
@@ -23,8 +23,8 @@ function instance(scene,geometry,mat,items){const m=new THREE.InstancedMesh(geom
 
 export class GameWorld {
   constructor(canvas,track){
-    this.track=track;this.time=0;this.wet=0;this.night=0;this.weather='sunset';this.quality='balanced';
-    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
+    this.track=track;this.time=0;this.wet=0;this.night=0;this.weather='sunset';this.quality='balanced';this.mobileResolution=new MobileResolution();
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:!matchMedia('(pointer:coarse)').matches,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,matchMedia('(pointer:coarse)').matches?1:1.5));this.renderer.setSize(canvas.clientWidth||innerWidth,canvas.clientHeight||innerHeight,false);
     this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.94;this.renderer.info.autoReset=false;
     this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -35,7 +35,7 @@ export class GameWorld {
     this.sun=new THREE.DirectionalLight('#ffe2b7',3.3);this.sun.position.set(-450,450,700);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);Object.assign(this.sun.shadow.camera,{left:-28,right:28,top:28,bottom:-28,near:1,far:1400});this.sun.shadow.bias=-.00010;this.sun.shadow.normalBias=.018;this.scene.add(this.sun,this.sun.target);
     this.env=createOutdoorEnvironment(this.renderer);this.scene.environment=this.env.texture;this.vehicleReflections=new VehicleReflections(this.renderer);
     this.uniforms={time:{value:0},wet:{value:0},night:{value:0},sunDir:{value:new THREE.Vector3(-.56,.32,.77).normalize()}};
-    this.buildSky();this.buildOcean();this.buildRoad();this.buildTerrain();this.buildScenery();this.buildBridge();addBridgeDetail(this);this.buildTunnel();this.buildSigns();this.buildParticles();
+    this.buildSky();this.buildRoad();this.buildTerrain();this.buildOcean();this.buildScenery();this.buildBridge();addBridgeDetail(this);this.buildTunnel();this.buildSigns();this.buildParticles();
     this.headlight=new THREE.SpotLight('#f4edce',100,95,.45,.7,1.5);this.scene.add(this.headlight,this.headlight.target);
     const target=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{type:THREE.HalfFloatType,samples:2});
     this.composer=new EffectComposer(this.renderer,target);this.composer.addPass(new RenderPass(this.scene,this.camera));
@@ -125,10 +125,15 @@ export class GameWorld {
     const markGeo=new THREE.BufferGeometry();this.skidPositions=new Float32Array(1600*6);markGeo.setAttribute('position',new THREE.BufferAttribute(this.skidPositions,3));this.skids=new THREE.LineSegments(markGeo,new THREE.LineBasicMaterial({color:'#182123',transparent:true,opacity:.45}));this.skids.frustumCulled=false;this.scene.add(this.skids);this.skidCursor=0;this.lastSkids=null;
   }
   emit(p,color,count=8){const positions=this.particleGeometry.attributes.position.array,colors=this.particleGeometry.attributes.color.array,col=new THREE.Color(color);for(let j=0;j<count;j++){const i=this.particleCursor++%this.particleLife.length;positions.set([p.x,p.y+.3,p.z],i*3);colors.set([col.r,col.g,col.b],i*3);this.particleLife[i]=.5+Math.random()*.5;this.particleVelocity.set([(Math.random()-.5)*7,Math.random()*4,(Math.random()-.5)*7],i*3);}this.particleGeometry.attributes.color.needsUpdate=true;}
-  setQuality(value){this.quality=value;this.resize();}
+  setQuality(value){this.quality=value;this.mobileResolution.reset();this.resize();}
+  trackFrameTime(dt,active){
+    const enabled=active&&this.quality==='balanced'&&matchMedia('(pointer:coarse)').matches;
+    if(this.mobileResolution.sample(dt,enabled))this.resize();
+  }
   resize(){
     const canvas=this.renderer.domElement,width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);
-    const budget=renderQuality(this.quality,{coarse:matchMedia('(pointer:coarse)').matches,dpr:devicePixelRatio,maxSamples:this.renderer.capabilities.maxSamples});
+    const budget=renderQuality(this.quality,{coarse:matchMedia('(pointer:coarse)').matches,dpr:devicePixelRatio,maxSamples:this.renderer.capabilities.maxSamples,width,height});
+    budget.resolutionScale=this.quality==='balanced'&&matchMedia('(pointer:coarse)').matches?this.mobileResolution.scale:1;budget.pixelRatio*=budget.resolutionScale;
     this.quality=budget.name;this.renderBudget=budget;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;
     this.bloom.enabled=budget.bloomScale>0;this.bloom.resolutionScale=budget.bloomScale||.5;
     this.renderer.shadowMap.enabled=budget.shadowSize>0;this.sunShadows.setQuality(budget);

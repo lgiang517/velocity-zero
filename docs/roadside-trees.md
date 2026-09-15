@@ -1,0 +1,8 @@
+# Roadside tree realism
+
+- 440 conifers and 65 broadleaf trees keep their original placements and clearance. Both near and far opaque green hulls were removed. Tree canopies now consist of spatial twig sprays with photographed cutout foliage, branching woody skeletons and buried root flares.
+- `src/vegetation-trees.js` owns reproducible tree geometry and materials. Photo foliage uses diffuse lighting, canopy normals and a small indirect/transmission term to avoid the pale specular appearance of thin cards; Lambert materials join the shared CSM sunlight preparation. Cutout shadows use the same map, threshold and wind displacement as the visible leaves.
+- Bark retains normal mapping, metre-scaled UVs and subtle indirect fill. Near/far pool caps remain 20/12 (12/6 low quality); spatial batching and unchanged-camera upload avoidance are retained. Detailed sprays include the lower-detail seed sequence to limit structural changes during LOD switches.
+- Six locally hosted maps total 954,146 bytes. Sources, preparation and CC0 credits: `vegetation-texture-credits.md`; reproducible processing: `tools/prepare-vegetation-textures.py`.
+- Validation: 193 tests pass, production build passes, no fresh-load page or shader errors. Screenshots cover conifer and broadleaf matched before/after, side and backlit views, bark and distance; actual game checks at 844x390 touch-emulated browser in balanced daylight and low-quality night report about 60 FPS at coastal and forest samples. This is not physical mobile hardware testing.
+- Local comparison report: `output/playwright/tree-realism/index.html`. Included in the mobile/scenery release prepared on 2026-09-15.

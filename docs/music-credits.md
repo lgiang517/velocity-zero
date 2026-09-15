@@ -1,6 +1,17 @@
 # Racing music credits
 
-## Current soundtrack — two selectable tracks
+## Current soundtrack — user-provided recordings (2026-09-15)
+
+- **向着海** — `public/audio/xiang-zhe-hai.mp3`, 3:32.36, stereo MP3 / 48 kHz. Default track.
+- **弯道引擎** — `public/audio/wan-dao-yin-qing.mp3`, 3:04.80, stereo MP3 / 48 kHz.
+
+Supplied by the user for this replacement. Copied byte-for-byte with no changes to tempo, pitch, EQ, audio samples or embedded metadata. No author or third-party license was supplied; the historical Kevin MacLeod / CC BY credit below does not apply to these recordings.
+
+The settings menu exposes these two tracks only. Obsolete saved track IDs fall back to 向着海. Each track loops, selection persists, and the existing gesture unlock / pause / mute behavior is retained. Previous recordings are omitted from the release bundle; their source files and historical attribution are retained below for provenance. Included in the mobile/scenery release prepared on 2026-09-15 at the user's request.
+
+Validation: source and game MP3 hashes match; both recordings decode fully with FFmpeg. All 18 audio/ignition tests and the production build pass. In an 844×390 touch-enabled Chrome session, both tracks start from a touch gesture with a running AudioContext; end-of-track looping, pause position and selected-track persistence pass. Chrome refines the second track duration after buffering (about 185.50 s); looping was confirmed after the actual end. Evidence: `output/playwright/user-music/`. No physical phone listening assessment was performed.
+
+## Archived soundtrack — Raving Energy
 
 **Raving Energy (faster)** by **Kevin MacLeod** (incompetech.com), **CC BY 4.0**.
 
@@ -21,7 +32,7 @@ Validation: 15 audio tests and production build passed. Chrome mobile/touch emul
 
 The recording was decoded and measured for validity and loudness. These technical checks are not a claimed listening assessment.
 
-## Added track: Cipher
+## Archived soundtrack — Cipher
 
 **Cipher** — **Kevin MacLeod (incompetech.com)**, **CC BY 4.0**.
 
