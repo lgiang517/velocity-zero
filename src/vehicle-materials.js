@@ -4,9 +4,13 @@ import * as THREE from 'three';
 export function refineVehicleMaterial(material,{simple=false}={}){
  const m=material;
  if(m.name==='Paint'){
-  m.metalness=.38;m.envMapIntensity=.94;
-  m.userData.vehicleFinish={dryRoughness:.29,wetRoughness:.19,dryCoat:.15,wetCoat:.075};
-  if(m.isMeshPhysicalMaterial)m.clearcoat=1;
+  // Metallic pigment supplies colored reflections under a sharper, neutral
+  // dielectric clearcoat. Keep the selected base color and existing geometry.
+  m.metalness=.72;m.envMapIntensity=1.1;
+  m.userData.vehicleFinish={dryRoughness:.225,wetRoughness:.15,dryCoat:.065,wetCoat:.035,envIntensity:1.1};
+  if(m.isMeshPhysicalMaterial){
+   m.clearcoat=1;m.ior=1.5;m.specularIntensity=1;m.specularColor.set('#ffffff');
+  }
   setVehicleWetness(m,0);
   if(!simple){
    m.onBeforeCompile=shader=>{

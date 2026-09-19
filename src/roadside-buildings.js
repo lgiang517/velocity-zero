@@ -155,20 +155,23 @@ export function buildRoadsideBuildings(world,place){
   }
   // Footpaths and gardens sit on the terraced platform rather than floating on sloping grass.
   const gardenZ=plotD/2-1.35;
-  add(site,'paving',.1,.18,gardenZ,1.45,.1,2.5);
+  const doorBays=Math.max(2,Math.floor(w/2.6)),doorX=-w/2+w/doorBays*(Math.floor(doorBays/2)+.5),frontZ=bodyZ+d/2;
+  add(site,'paving',doorX,.18,(frontZ+gardenZ)/2,1.45,.1,gardenZ-frontZ+1.0);
+  add(site,'paving',doorX/2,.18,gardenZ,Math.abs(doorX)+1.45,.1,.9);
+  add(site,'paving',0,.18,(gardenZ+plotD/2)/2,1.45,.1,plotD/2-gardenZ+.08);
   for(const x of[-plotW/2+.65,plotW/2-.65]){
    add(site,'stone',x,.36,.7,.6,.6,plotD-2.3);
    for(let i=0;i<6;i++)add(site,'foliage',x,.79,-plotD/2+1.7+i*(plotD-3.7)/5,.5,.50,.70,{shape:'bush',detail:true,color:i%2?'#52664c':'#677052'});
   }
-  for(const x of[-plotW*.29,plotW*.30]){
+  for(const x of (variant===3?[]:[-plotW*.29,plotW*.30])){
    add(site,'stone',x,.36,gardenZ,2.6,.6,1.15);
    for(let i=0;i<3;i++)add(site,'foliage',x-.8+i*.8,.8,gardenZ,.66,.50,.55,{shape:'bush',color:site.id%2?'#5e6d4a':'#667953'});
   }
   // Human-scale arrival details, restrained enough to remain credible at driving speed.
   add(site,'metal',1.35,.64,plotD/2-.5,.075,1.2,.075,{detail:true});
   add(site,'wood',1.35,1.25,plotD/2-.5,.38,.28,.44,{detail:true,color:'#465a56'});
-  add(site,'wood',-2,.64,gardenZ,1.7,.11,.47,{detail:true});
-  for(const x of[-2.65,-1.35])add(site,'dark',x,.35,gardenZ,.07,.55,.40,{detail:true});
+  add(site,'wood',-2,.64,gardenZ+.95,1.7,.11,.47,{detail:true});
+  for(const x of[-2.65,-1.35])add(site,'dark',x,.35,gardenZ+.95,.07,.55,.40,{detail:true});
   // Solid steps descend to the sampled approach terrain; every tread has its own footing.
   const entry=localZ=>new THREE.Vector3(0,0,localZ).applyAxisAngle(UP,site.heading).add(site.p);
   const end=entry(plotD/2+4.35),endY=world.groundHeight(end.x,end.z)-site.p.y+.12;

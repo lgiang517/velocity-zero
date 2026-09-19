@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {CoastTrack} from '../src/track.js';
 import {tunnelWalkwayGeometry,buildDetailedTunnel} from '../src/structures.js';
 
-const track=new CoastTrack();
+const track=new CoastTrack({legacy:true});
 
 test('both tunnel walkways follow the road height and lateral frame through every section',()=>{
  for(const side of [-1,1]){

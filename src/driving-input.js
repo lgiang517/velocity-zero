@@ -13,7 +13,11 @@ export class DrivingInput{
   if(rememberedReverse)this.reversalTime=.65;
   this.lastDirection=Math.sign(target);this.neutralTime=0;
   this.countersteering=target!==0 && (rememberedReverse || target*this.steer<0 || (this.countersteering && Math.abs(target-this.steer)>.001));
-  const rate=this.countersteering?16:8/(1+velocity/160);
+  // Reduce the two-stage delay of brief city-speed key/touch taps. Fade this
+  // small boost out as lock builds and by 90 km/h; high-speed steering and
+  // opposite lock stay intact without increasing the per-tick steering jump.
+  const tapRate=8+2*(1-smooth((velocity-12)/13))*(1-smooth(Math.abs(this.steer)/.65));
+  const rate=this.countersteering?16:tapRate/(1+velocity/160);
   this.steer+=clamp(target-this.steer,-rate*dt,rate*dt);
   const shaped=this.steer*(.85+.15*Math.abs(this.steer));
   const available=config.steer/(1+velocity/32);
@@ -26,7 +30,7 @@ export class DrivingInput{
   const corner=Math.atan(config.wheelbase*accel/(velocity*velocity+1))+understeer*accel;
   let limit=1+(Math.min(1,corner/available)-1)*smooth((velocity-5)/10);
   // A sliding car needs enough opposite lock; this only widens the player's requested range.
-  if(target*this.steer>0 && target*(vehicle?.r||0)<0){
+  if(target*this.steer>0 && target*(vehicle?.r||0)*(speed<0?-1:1)<0){
    const slip=Math.abs(Math.atan2(vehicle?.v||0,Math.max(4,velocity)));
    limit=Math.min(1,limit+slip/available);
   }

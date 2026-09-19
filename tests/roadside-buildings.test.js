@@ -41,3 +41,22 @@ test('near-detail batches release outside range without hiding building shells',
  assert.ok(world.scene.children.some(m=>m.name.startsWith('Roadside plaster|box|false')&&m.visible));
  assert.ok(world.roadsideStats.triangles<130000);
 });
+
+
+test('garden seats clear front planters, entrance paths and the platform edge',()=>{
+ const matrix=new THREE.Matrix4(),scale=new THREE.Vector3(),centre=new THREE.Vector3(),rotation=new THREE.Quaternion();let benches=0;
+ for(const mesh of world.scene.children.filter(m=>m.name.startsWith('Roadside wood|box'))){
+  for(let i=0;i<mesh.count;i++){
+   mesh.getMatrixAt(i,matrix);matrix.decompose(centre,rotation,scale);
+   if(Math.abs(scale.x-1.7)>.001||Math.abs(scale.y-.11)>.001)continue;
+   const site=world.roadsideSites.reduce((a,b)=>a.p.distanceToSquared(centre)<b.p.distanceToSquared(centre)?a:b);
+   const local=centre.clone().sub(site.p).applyAxisAngle(new THREE.Vector3(0,1,0),-site.heading);
+   const seatRear=local.z-scale.z/2,seatFront=local.z+scale.z/2;
+   assert.ok(seatFront<site.plotD/2-.1,'seat remains inside the terrace');
+   assert.ok(local.x+scale.x/2<-.725,'seat leaves the 1.45 metre entrance path clear');
+   if(site.variant!==3)assert.ok(seatRear>site.plotD/2-1.35+.575+.1,'seat cannot overlap the original front planter');
+   benches++;
+  }
+ }
+ assert.equal(benches,world.roadsideSites.length);
+});

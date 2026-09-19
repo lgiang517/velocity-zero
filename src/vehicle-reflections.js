@@ -19,7 +19,13 @@ export class VehicleReflections {
  update(world,car,dt,inside){
   this.configure(world.renderBudget.reflectionSize);
   if(this.car!==car){this.car?.setEnvironment(null);this.car=car;this.face=-1;this.elapsed=Infinity;}
-  if(!this.size){car.setEnvironment(null);return;}
+  // Reuse the existing PMREM for paint even before capture, on mobile, or inside.
+  // Explicit static maps need night/tunnel attenuation; local probes already
+  // capture the scene lighting and must not receive that attenuation twice.
+  const environment={fallbackTexture:world.env?.texture??null,
+   intensityScale:this.filtered?1:(1-THREE.MathUtils.clamp(world.night||0,0,1)*.73)*(1-THREE.MathUtils.clamp(world.tunnelAmount||0,0,1)*.60)};
+  car.setEnvironment(this.filtered?.texture??null,environment);
+  if(!this.size)return;
   this.elapsed+=dt;this.cooldown=Math.max(0,this.cooldown-dt);
   if(this.cooldown>0)return;
   // The driver's hood keeps the last complete probe, with no capture overhead inside.
@@ -47,7 +53,7 @@ export class VehicleReflections {
    if(this.face===6){
     const next=this.pmrem.fromCubemap(this.cube.texture,this.pendingFiltered);
     this.pendingFiltered=this.filtered;this.filtered=next;
-    car.setEnvironment(this.filtered.texture);this.face=-1;this.stats.updates++;delete this.stats.lastError;
+    car.setEnvironment(this.filtered.texture,{...environment,intensityScale:1});this.face=-1;this.stats.updates++;delete this.stats.lastError;
    }
   }catch(error){
    // A failed optional probe cannot stop the driving loop. Keep the last complete map.
@@ -62,7 +68,7 @@ export class VehicleReflections {
  }
  release(){
   this.car?.setEnvironment(null);this.cube?.dispose();this.filtered?.dispose();this.pendingFiltered?.dispose();this.pmrem?.dispose();
-  this.cube=null;this.filtered=null;this.pendingFiltered=null;this.pmrem=null;this.face=-1;this.elapsed=Infinity;
+  this.cube=null;this.filtered=null;this.pendingFiltered=null;this.pmrem=null;this.face=-1;this.stats.face=-1;this.elapsed=Infinity;
  }
  dispose(){this.release();this.car=null;}
 }

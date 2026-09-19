@@ -5,16 +5,17 @@ import {CoastTrack} from '../src/track.js';
 import {buildCoastalTerrain, terrainMaterial} from '../src/terrain.js';
 import {buildCoastalScenery} from '../src/scenery.js';
 
-const world={scene:new THREE.Scene(),track:new CoastTrack(),camera:new THREE.PerspectiveCamera(67,1.6,.1,7000),uniforms:{time:{value:0}},quality:'balanced'};
+const world={scene:new THREE.Scene(),track:new CoastTrack({legacy:true}),camera:new THREE.PerspectiveCamera(67,1.6,.1,7000),uniforms:{time:{value:0}},quality:'balanced'};
 buildCoastalTerrain(world);buildCoastalScenery(world);
 const meshes=prefix=>world.scene.children.filter(mesh=>mesh.name.startsWith(prefix));
 const total=prefix=>meshes(prefix).reduce((sum,mesh)=>sum+mesh.count,0);
 const tree=meshes('Continuous coastal fir crowns')[0].userData.sourceItems[0];
 function faceTree(){world.camera.position.copy(tree.p).add(new THREE.Vector3(0,6,-35));world.camera.lookAt(tree.p.clone().add(new THREE.Vector3(0,4,0)));world.updateVegetationLod();}
 
-test('terrain optimisation preserves sampled road, verge, hillside and bridge heights',()=>{
- // Baseline world-space heights, captured before grid partitioning/material changes.
- const samples=[[-23.709084669716948,139.16857508910456,13.697540464727858],[6.21993850172365,137.10615612018196,19.877303425760463],[36.14896167316425,135.04373715125936,20.296187842238076],[74.87036065424724,1056.8082224074158,125.13934560330976],[97.32809941387914,1036.917270449198,125.14249272135305],[434.2612625168869,1047.8494563781528,190.46640996148412],[407.62709985695665,1034.0428862246217,190.5611892531995],[558.9085563341662,789.8203828262531,140.31140428825393],[578.5682028127663,767.1598819417522,145.32382195882755],[598.2278492913665,744.4993810572514,148.7327023161755],[1223.2903379806942,957.778058264979,32.04060660416475],[1197.9570594802835,941.7086774299677,32.08844060263004],[1171.704182786563,-155.54383361301973,20.871114467976287],[1143.4338227102864,-165.58309360356017,21.04693148939995],[622.3475985726294,-892.8087517428204,40.37414834790868],[629.2008388011823,-863.6020213819986,45.932229985313654],[636.0540790297351,-834.3952910211768,47.50931344650659],[89.28826714480748,-399.9686776434872,-12],[116.32465386702896,-386.9673779774351,-12]];
+test('terrain preserves reference heights outside the designed viaduct canyon',()=>{
+ // Baseline heights outside new terrain. Three mountain-floor samples now
+ // describe the explicit 64 m viaduct canyon; the driving spline is unchanged.
+ const samples=[[-23.709084669716948,139.16857508910456,13.697540464727858],[6.21993850172365,137.10615612018196,19.877303425760463],[36.14896167316425,135.04373715125936,20.296187842238076],[74.87036065424724,1056.8082224074158,125.13934560330976],[97.32809941387914,1036.917270449198,125.14249272135305],[434.2612625168869,1047.8494563781528,190.46640996148412],[407.62709985695665,1034.0428862246217,190.5611892531995],[558.9085563341662,789.8203828262531,80.93258095802656],[578.5682028127663,767.1598819417522,81.32382195882755],[598.2278492913665,744.4993810572514,89.38691233088801],[1223.2903379806942,957.778058264979,32.04060660416475],[1197.9570594802835,941.7086774299677,32.08844060263004],[1171.704182786563,-155.54383361301973,20.871114467976287],[1143.4338227102864,-165.58309360356017,21.04693148939995],[622.3475985726294,-892.8087517428204,40.37414834790868],[629.2008388011823,-863.6020213819986,45.932229985313654],[636.0540790297351,-834.3952910211768,47.50931344650659],[89.28826714480748,-399.9686776434872,-12],[116.32465386702896,-386.9673779774351,-12]];
  for(const [x,z,height] of samples) assert.equal(world.groundHeight(x,z),height);
  assert.equal(world.terrainStats.groundTriangles,115500);assert.equal(world.terrainStats.ridgeTriangles,68040);
 });
@@ -36,10 +37,11 @@ test('terrain tiles share exact border normals and allow offscreen ground to be 
  for(const ridge of meshes('Horizon ridge')){assert.equal(ridge.castShadow,false);assert.equal(ridge.receiveShadow,false);}
 });
 
-test('distant terrain shader has no texture sampling or normal-detail cost',()=>{
+test('distant terrain shader derives relief from a bounded albedo scan without extra normal samples',()=>{
  const shader={uniforms:{},vertexShader:THREE.ShaderLib.standard.vertexShader,fragmentShader:THREE.ShaderLib.standard.fragmentShader};
  terrainMaterial({distant:true}).onBeforeCompile(shader);
- assert.ok(!shader.fragmentShader.includes('texture2D('));
+ assert.ok((shader.fragmentShader.match(/texture(?:2D|Grad)\(/g)||[]).length<=3,'far terrain has at most three shared color reads');
+ assert.ok(shader.fragmentShader.includes('dFdx(reliefHeight)'),'mineral relief reuses existing color samples');
  assert.ok(!shader.uniforms.uRockNormal);
 });
 

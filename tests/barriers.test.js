@@ -23,10 +23,10 @@ test('Entire route: all selectable car footprints clear both actual rails at eve
  for(const config of CARS){
   const p=new VehiclePhysics(config),h=vehicleEnvelope(config);
   for(let i=0;i<track.count;i++)for(const side of [-1,1])for(const angle of [-2.8,-1.5,-.8,-.25,0,.25,.8,1.5,2.8]){
-   p.reset(i*track.step,side*10.5);p.yaw=angle;p.u=70;p.v=side*8;
-   p.resolveBarrier(track.samples[i].curvature);
+   p.reset(i*track.step,side*(track.samples[i].barrierOffset+.65));p.yaw=angle;p.u=70;p.v=side*8;
+   p.resolveBarrier(track.samples[i].curvature,1/120,track.samples[i].barrierOffset);
    for(const x of [-h.halfWidth,h.halfWidth])for(const z of [-h.halfLength,h.halfLength]){
-    const d=cornerLateral(p,x,z);assert.ok(Math.abs(d)<BARRIER.offset-BARRIER.halfThickness,`penetration at ${p.s}, ${config.id}, yaw ${angle}, d ${d}`);
+    const d=cornerLateral(p,x,z);assert.ok(Math.abs(d)<track.samples[i].barrierOffset-BARRIER.halfThickness,`penetration at ${p.s}, ${config.id}, yaw ${angle}, d ${d}`);
    }checked++;
   }
  }
@@ -40,7 +40,7 @@ test('Continuous rail cross-section follows every slope, turn and loop seam',()=
    const q=track.samples[i],expectedHeight=j<2?BARRIER.bottom:BARRIER.top;
    assert.ok(Math.abs(p.getY(i*4+j)-q.p.y-expectedHeight)<.00002);
    const d=(p.getX(i*4+j)-q.p.x)*q.right.x+(p.getZ(i*4+j)-q.p.z)*q.right.z;
-   assert.ok(Math.abs(Math.abs(d)-BARRIER.offset)<=BARRIER.halfThickness+.0001);
+   assert.ok(Math.abs(Math.abs(d)-q.barrierOffset)<=BARRIER.halfThickness+Math.max(.0001,Math.max(Math.abs(q.p.x),Math.abs(q.p.z))*2**-23));
   }
   for(let j=0;j<4;j++)assert.ok(Math.hypot(p.getX(j)-p.getX(track.count*4+j),p.getY(j)-p.getY(track.count*4+j),p.getZ(j)-p.getZ(track.count*4+j))<.0001);
   g.dispose();
@@ -68,7 +68,8 @@ test('Road paint follows the curve within 1.5 cm even at the tightest hairpins',
   for(let row=0;row<rows;row++){
    const a=row*stride+column,b=a+stride,s=(uv.getY(a)+uv.getY(b))*.5;
    const exact=track.curve.getPointAt(s/track.length),tan=track.curve.getTangentAt(s/track.length),norm=Math.hypot(tan.x,tan.z);
-   const x=exact.x+tan.z/norm*d,z=exact.z-tan.x/norm*d;
+   const actualD=(uv.getX(a)+uv.getX(b))*.5;
+   const x=exact.x+tan.z/norm*actualD,z=exact.z-tan.x/norm*actualD;
    const error=Math.hypot((p.getX(a)+p.getX(b))*.5-x,(p.getY(a)+p.getY(b))*.5-exact.y,(p.getZ(a)+p.getZ(b))*.5-z);
    assert.ok(error<.015,`paint deviates ${error} m at station ${s}`);
   }

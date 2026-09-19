@@ -1,3 +1,4 @@
+import {legacySceneWorld} from './legacy-world.js';
 import * as THREE from 'three';
 
 function batch(scene,geometry,material,items){
@@ -64,6 +65,7 @@ function tunnelWalkwayMaterial(){
 }
 
 export function buildDetailedTunnel(world){
+ world=legacySceneWorld(world);
  const {track,scene}=world,start=track.length*.22,end=track.length*.26,steps=96,sides=24,positions=[],uv=[],indices=[];
  for(let i=0;i<=steps;i++){
   const s=start+(end-start)*i/steps,q=track.sample(s);

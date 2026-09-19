@@ -24,7 +24,7 @@ export function buildAtmosphere(world){
  world.uniforms.daylight={value:0};
  const mat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{...world.uniforms,cloudDensity:{value:createCloudDensity()}},
   vertexShader:'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-  fragmentShader:`varying vec3 vDirection;uniform float time,wet,night,daylight;uniform vec3 sunDir;uniform sampler2D cloudDensity;${noiseGLSL}
+  fragmentShader:`varying vec3 vDirection;uniform float time,wet,night,daylight,cloud;uniform vec3 sunDir;uniform sampler2D cloudDensity;${noiseGLSL}
   void main(){
    vec3 d=normalize(vDirection);float h=max(d.y,0.);float facing=pow(max(dot(d,sunDir),0.),5.);
    vec3 horizon=mix(vec3(.68,.49,.32),vec3(.45,.65,.77),daylight);
@@ -36,18 +36,18 @@ export function buildAtmosphere(world){
    vec2 cloudUV=plane*.16+vec2(time*.00011,0.);
    vec2 field=texture2D(cloudDensity,cloudUV).rg;
    float density=field.r;
-   float cover=smoothstep(.49-wet*.13,.65-wet*.09,density);
+   float cover=smoothstep(.49-max(wet,cloud)*.13,.65-max(wet,cloud)*.09,density);
    cover*=smoothstep(.025,.12,h);
    // Sunward density difference gives the cloud body a shaded base and lit rim.
    float sunward=texture2D(cloudDensity,cloudUV+normalize(sunDir.xz)*.017).r;
    float lighting=clamp(.57+(density-sunward)*3.8+field.g*.18,0.,1.);
-   vec3 cloud=mix(vec3(.34,.40,.46),vec3(.94,.96,.97),lighting);
-   cloud=mix(cloud,cloud*vec3(1.12,.91,.76),1.-daylight);
-   cloud+=vec3(.14,.105,.065)*facing*(1.-cover)*2.;
+   vec3 cloudColor=mix(vec3(.34,.40,.46),vec3(.94,.96,.97),lighting);
+   cloudColor=mix(cloudColor,cloudColor*vec3(1.12,.91,.76),1.-daylight);
+   cloudColor+=vec3(.14,.105,.065)*facing*(1.-cover)*2.;
    float cirrus=texture2D(cloudDensity,plane*vec2(.065,.36)+vec2(.42,time*.000035)).g;
    float veil=smoothstep(.58,.85,cirrus)*smoothstep(.06,.3,h)*.19;
    color=mix(color,vec3(.79,.84,.89),veil*(1.-wet));
-   color=mix(color,cloud,cover*.97);
+   color=mix(color,cloudColor,cover*.97);
    float disc=smoothstep(.999985-fwidth(sun),.999992+fwidth(sun),sun);
    color+=vec3(1.,.91,.73)*(pow(sun,700.)*.26+disc*5.)*(1.-wet)*(1.-cover*.98);
    color=mix(color,vec3(.30,.38,.42)+color*.15,wet*.70);

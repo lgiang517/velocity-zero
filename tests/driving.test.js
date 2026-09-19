@@ -30,10 +30,10 @@ test('Track is continuous, elevated and numerically valid at seam',()=>{
  assert.ok(Math.max(...track.samples.map(s=>s.p.y))-Math.min(...track.samples.map(s=>s.p.y))>175);
  for(const s of[-1,0,100,track.length-1,track.length+1]){const q=track.sample(s);assert.ok(Number.isFinite(q.curvature));assert.ok(Number.isFinite(q.heading));}
 });
-test('AI drives a full coast without teleporting or getting trapped',()=>{
+test('AI drives the extended full route without teleporting or getting trapped',()=>{
  const track=new CoastTrack(),p=new VehiclePhysics(),player=new VehiclePhysics();p.reset(45,2.6);player.reset(-500,0);const ai=new DriverAI(p);let maxD=0;
- for(let tick=0;tick<120*300&&p.s<track.length+45;tick++){
-  const q=track.sample(p.s);p.step(dt,ai.controls(track,player,[p,player],tick*dt),{curvature:q.curvature,slope:q.slope,wet:0},true);maxD=Math.max(maxD,Math.abs(p.d));
+ for(let tick=0;tick<120*Math.max(300,track.length/20)&&p.s<track.length+45;tick++){
+  const q=track.sample(p.s);p.step(dt,ai.controls(track,player,[p,player],tick*dt),{curvature:q.curvature,slope:q.slope,medianHalfWidth:q.medianHalfWidth,wet:0},true);maxD=Math.max(maxD,Math.abs(p.d));
   assert.ok(Number.isFinite(p.u)&&Number.isFinite(p.yaw));
  }
  assert.ok(p.s>track.length,'AI stopped at '+p.s+'/'+track.length+'; speed '+p.u+'; lateral '+p.d+'; collisions '+p.collisions);

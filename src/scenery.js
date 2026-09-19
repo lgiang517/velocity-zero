@@ -1,11 +1,15 @@
+import {legacySceneWorld} from './legacy-world.js';
+import {elevatedSectionAt} from './scenic-sections.js';
 import {buildRoadsideBuildings} from './roadside-buildings.js';
+import {buildNeighborhood} from './neighborhood.js';
+import {coastalBoulderGeometry,coastalBoulderMaterial} from './coastal-boulders.js';
 import * as THREE from 'three';
 import {coniferGeometry,coniferWoodGeometry,broadleafCanopyGeometry,broadleafWoodGeometry,canopyMaterial,barkMaterial} from './vegetation-trees.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const TAU = Math.PI * 2;
 const random = n => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453123; return v - Math.floor(v); };
-const stoneColors = ['#92917e', '#7c8072', '#a39a81', '#737d72'];
+const stoneColors = ['#e3dfd5', '#c8ccca', '#dfd4c0', '#bdc2bf'];
 const pineColors = ['#e0e1ce', '#becbb5', '#ece7d4', '#c7d2c2', '#d2d9c4'];
 const boxGeometry = () => new THREE.BoxGeometry(1, 1, 1);
 const standard = (color, roughness = .82, metalness = 0) => new THREE.MeshStandardMaterial({color, roughness, metalness, envMapIntensity: .3});
@@ -104,39 +108,9 @@ function foliageMaterial(world) {
   return mat;
 }
 
-function rockGeometry() {
-  const geometry = new THREE.IcosahedronGeometry(1, 1), a = geometry.attributes.position, colors = [];
-  for (let i = 0; i < a.count; i++) {
-    const x = a.getX(i), y = a.getY(i), z = a.getZ(i);
-    const ridge = 1 + Math.sin(x * 7 + z * 4) * .12 + Math.cos(y * 9 + z) * .08;
-    a.setXYZ(i, x * ridge, y * (.87 + Math.sin(z * 4) * .07), z * ridge);
-    const light = .65 + (y + 1) * .12 + Math.sin(x * 9 + z * 6) * .045;
-    colors.push(light, light * .99, light * .90);
-  }
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
 const surfaceNoise = `
 float coastHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float coastNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(coastHash(i),coastHash(i+vec2(1,0)),f.x),mix(coastHash(i+vec2(0,1)),coastHash(i+vec2(1,1)),f.x),f.y);}`;
-
-function stoneMaterial() {
-  const mat = standard('#ffffff', .94);
-  mat.vertexColors = true;
-  mat.onBeforeCompile = shader => {
-    shader.vertexShader = 'varying vec3 vStoneP;\n' + shader.vertexShader;
-    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvStoneP=position;');
-    shader.fragmentShader = 'varying vec3 vStoneP;\n' + surfaceNoise + '\n' + shader.fragmentShader;
-    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
-      float grit=coastNoise(vStoneP.xz*19.);
-      float layers=coastNoise(vec2(vStoneP.x*4.+vStoneP.z*3.,vStoneP.y*21.+grit*.7));
-      diffuseColor.rgb*=.78+layers*.29+grit*.13;`);
-  };
-  mat.customProgramCacheKey = () => 'coastal-stone-v1';
-  return mat;
-}
 
 // Coordinates are in real metres even when each instanced building has a
 // different height. Floor spacing therefore does not stretch with skyscrapers.
@@ -207,6 +181,7 @@ function placementTools(world) {
     const p = track.point(s, lateral, 0), near = nearestRoad(p);
     if (near.distance < 14.7 + radius) return null;
     if (world.roadsideSites?.some(site=>Math.hypot(site.p.x-p.x,site.p.z-p.z)<site.radius+radius+1))return null;
+    if (world.neighborhoodPaths?.containsPoint(p.x,p.z,radius+.25)) return null;
     if (near.fraction > .896 && near.fraction < .997) return null;
     if (vegetation && near.fraction > .213 && near.fraction < .268) return null;
     p.y = world.groundHeight(p.x, p.z);
@@ -259,7 +234,7 @@ function buildVegetation(world, place) {
   const bark=barkMaterial(world);
   batch(world,'Conifer trunk and branch structure',coniferWoodGeometry(),bark,pines);
   batch(world,'Broadleaf trunk and branch structure',broadleafWoodGeometry(),bark,broadleaves);
-  batch(world, 'Fractured coastal boulders', rockGeometry(), stoneMaterial(), rocks);
+  batch(world, 'Fractured coastal boulders', coastalBoulderGeometry(), coastalBoulderMaterial(), rocks);
   world.sceneryStats.trees = pines.length + broadleaves.length;
   world.sceneryStats.grassClumps = grass.length;
 }
@@ -521,16 +496,18 @@ function buildTurbines(world, place) {
   world.sceneryStats.batches += rotors.length * 2;
 }
 
-function buildLamps(world) {
-  const posts = [], arms = [], housings = [], lights = [];
+function buildLamps(world,routeTrack=world.track) {
+  const posts = [], arms = [], housings = [], lights = [];world.streetLampFixtures??=[];
   for (let s = 22; s < world.track.length; s += 76) {
-    if (world.track.inTunnel(s)) continue;
+    if (world.track.inTunnel(s)||elevatedSectionAt(s/world.track.length)) continue;
+    const routeS=routeTrack.legacyTrack?routeTrack.legacyS(s/world.track.length):s;if(routeS===null)continue;
     const q = world.track.sample(s), heading = q.heading;
     const at = (d, h) => world.track.point(s, d, h);
     posts.push({p: at(12, 4.4), x: .14, y: 8.8, z: .14});
     arms.push({p: at(10.96, 8.77), x: 2.2, y: .11, z: .13, ry: heading});
     housings.push({p: at(9.84, 8.74), x: .9, y: .15, z: .41, ry: heading});
     lights.push({p: at(9.79, 8.652), x: .71, y: .025, z: .27, ry: heading});
+    if(!world.track.legacyTrack)world.streetLampFixtures.push({position:at(9.79,8.652),roadPoint:at(3.8,.057),heading,slope:q.slope,s:routeS});
   }
   batch(world, 'Tapered roadside light poles', new THREE.CylinderGeometry(.58, 1, 1, 6), standard('#798680', .47, .65), posts, {chunk: 0});
   batch(world, 'Streetlight outreach arms', boxGeometry(), standard('#89968e', .45, .62), arms, {chunk: 0});
@@ -541,13 +518,15 @@ function buildLamps(world) {
 
 /** Replace GameWorld.buildScenery with this call after terrain construction. */
 export function buildCoastalScenery(world) {
+  const routeTrack=world.track;world=legacySceneWorld(world);
   world.sceneryStats = {triangles: 0, instances: 0, batches: 0, trees: 0, grassClumps: 0, buildings: 0};
   const place = placementTools(world);
   buildRoadsideBuildings(world, place);
+  world.neighborhood=buildNeighborhood(world,world.roadsideSites);
   buildVegetation(world, place);
   buildCity(world, place);
   buildPort(world, place);
   buildTurbines(world, place);
-  buildLamps(world);
+  buildLamps(world,routeTrack);
   return world.sceneryStats;
 }

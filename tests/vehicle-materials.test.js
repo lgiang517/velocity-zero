@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {refineVehicleMaterial,setVehicleWetness} from '../src/vehicle-materials.js';
 test('refinement touches cloned material only and owns no additional resources',()=>{
  const original=new THREE.MeshPhysicalMaterial({color:'#e85824',roughness:.28});original.name='Paint';
- const clone=refineVehicleMaterial(original.clone());assert.equal(original.roughness,.28);assert.equal(clone.roughness,.29);assert.equal(clone.color.getHex(),original.color.getHex());assert.equal(clone.transmission,0);
+ const clone=refineVehicleMaterial(original.clone());assert.equal(original.roughness,.28);assert.equal(clone.roughness,.225);assert.equal(clone.color.getHex(),original.color.getHex());assert.equal(clone.transmission,0);
  for(const key of Object.keys(clone))assert.ok(!clone[key]?.isTexture);
  let disposed=0;clone.addEventListener('dispose',()=>disposed++);clone.dispose();assert.equal(disposed,1);original.dispose();
 });
@@ -26,8 +26,21 @@ test('paint and driver hood share bounded wetness response without changing colo
  for(const wet of[0,.5,1,-2,4,NaN]){
   setVehicleWetness(paint,wet);setVehicleWetness(hood,wet);
   assert.equal(paint.roughness,hood.roughness);assert.equal(paint.clearcoatRoughness,hood.clearcoatRoughness);
-  assert.ok(paint.roughness>=.19&&paint.roughness<=.29);assert.ok(paint.clearcoatRoughness>=.075&&paint.clearcoatRoughness<=.15);
+  assert.ok(paint.roughness>=.15&&paint.roughness<=.225);assert.ok(paint.clearcoatRoughness>=.035&&paint.clearcoatRoughness<=.065);
   assert.equal(paint.color.getHex(),0xe85824);assert.equal(hood.colorWrite,false);assert.equal(hood.depthWrite,false);
  }
  paint.dispose();hood.dispose();
+});
+
+
+test('imported metallic pigment keeps its color under a neutral clearcoat specular layer',()=>{
+ const source=new THREE.MeshPhysicalMaterial({color:'#858c90',metalness:.4,specularIntensity:.291});source.name='Paint';
+ const m=refineVehicleMaterial(source.clone());
+ assert.equal(source.specularIntensity,.291);assert.equal(m.color.getHex(),source.color.getHex());
+ assert.ok(m.metalness>.6&&m.metalness<.9,'paint must have metallic pigment without becoming a perfect metal mirror');
+ assert.equal(m.specularIntensity,1);assert.equal(m.specularColor.getHex(),0xffffff);assert.equal(m.clearcoat,1);
+ assert.ok(m.clearcoatRoughness<m.roughness,'clearcoat highlight must be sharper than the pigmented base');
+ assert.equal(m.envMapIntensity,m.userData.vehicleFinish.envIntensity);
+ for(const w of[0,.5,1]){setVehicleWetness(m,w);assert.ok(m.clearcoatRoughness<m.roughness);assert.equal(m.metalness,.72);}
+ source.dispose();m.dispose();
 });

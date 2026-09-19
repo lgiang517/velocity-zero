@@ -7,5 +7,5 @@ export function lateralExtent(config,yaw,curvature=0){
  // Includes body roll and the curved rail moving inward beside a rotated car.
  return Math.abs(Math.cos(yaw))*w+Math.abs(Math.sin(yaw))*l+.15+Math.abs(curvature)*(l+w)**2;
 }
-export function barrierLimit(config,yaw,curvature=0){return BARRIER.offset-BARRIER.halfThickness-BARRIER.clearance-lateralExtent(config,yaw,curvature);}
+export function barrierLimit(config,yaw,curvature=0,offset=BARRIER.offset){return offset-BARRIER.halfThickness-BARRIER.clearance-lateralExtent(config,yaw,curvature);}
 

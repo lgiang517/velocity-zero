@@ -1,5 +1,7 @@
 # Landscape realism
 
+Latest mountain and roadside rock revision: [2026-09-19 validation](mountain-rock-realism.md). The dated record below describes the previous release.
+
 Local update, 2026-09-15. Source changes: environment-assets.js, terrain.js, scenery.js, atmosphere.js.
 
 - Repeat the Poly Haven Leafy Grass scan at its measured 2 metre coverage. Share the 1K color and 512px OpenGL normal map across terrain tiles. Retain mipmapping and 4x anisotropy. Blend green/dry patches with soil and steep rock; preserve road/verge/shoreline heights.
