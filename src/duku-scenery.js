@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {terrainMaterial} from './terrain.js';
+import {chinaMountainMaterial} from './china-mountain-material.js';
 import {createDukuLandforms} from './duku-landforms.js';
 export {createDukuLandforms} from './duku-landforms.js';
 export const DUKU_SECTION={id:'duku',label:'独库公路 · 哈希勒根—乔尔玛',reconstruction:'compressed-real-features'};
@@ -19,7 +19,7 @@ export function buildDukuScenery(world){
  const stats={enabled:!!landforms,triangles:0,batches:0,markers:0,snowVertices:0,snowWallMetres:0,galleryMetres:0,newAssetDownloads:0,perFrameUpdates:0};
  if(!landforms)return{stats,meshes,sourceItems,dispose(){}};
  const {section,features}=landforms,track=world.track;stats.section={id:'duku',startS:section.startS,endS:section.endS,length:section.length};
- const mountainMaterial=terrainMaterial({distant:true,weather:world.uniforms}),detailMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,envMapIntensity:.1});materials.push(mountainMaterial,detailMaterial);
+ const mountainMaterial=chinaMountainMaterial(world),detailMaterial=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.93,metalness:0,envMapIntensity:.1});materials.push(detailMaterial);
  function add(geometry,material,name,metadata={}){
   geometry.computeBoundingBox();geometry.computeBoundingSphere();const mesh=new THREE.Mesh(geometry,material);mesh.name=name;mesh.castShadow=false;mesh.receiveShadow=false;mesh.userData.dukuScenery=true;mesh.userData.source=metadata;meshes.push(mesh);world.scene.add(mesh);stats.triangles+=(geometry.index?.count??geometry.attributes.position.count)/3;stats.batches++;return mesh;
  }
@@ -27,15 +27,15 @@ export function buildDukuScenery(world){
   const pp=[],idx=[];for(let j=0;j<=rows;j++)for(let i=0;i<=cols;i++)pp.push(...point(i/cols,j/rows));
   for(let j=0;j<rows;j++)for(let i=0;i<cols;i++){const a=j*(cols+1)+i,b=a+cols+1;idx.push(a,b,a+1,a+1,b,b+1);}
   const source=new THREE.BufferGeometry();source.setAttribute('position',new THREE.Float32BufferAttribute(pp,3));source.setIndex(idx);source.computeVertexNormals();
-  const p=source.attributes.position,n=source.attributes.normal,cc=[];for(let i=0;i<p.count;i++){const c=color(p.getX(i),p.getY(i),p.getZ(i),n.getX(i),n.getY(i),n.getZ(i));cc.push(...c.slice(0,3));if(c[3]>.6)stats.snowVertices++;}
-  for(let z0=0;z0<rows;z0+=tileRows)for(let x0=0;x0<cols;x0+=tileCols){const width=Math.min(tileCols,cols-x0),height=Math.min(tileRows,rows-z0),pos=[],normals=[],colors=[],indices=[];
-   for(let j=0;j<=height;j++)for(let i=0;i<=width;i++){const a=(j+z0)*(cols+1)+i+x0;pos.push(p.getX(a),p.getY(a),p.getZ(a));normals.push(n.getX(a),n.getY(a),n.getZ(a));colors.push(cc[a*3],cc[a*3+1],cc[a*3+2]);}
+  const p=source.attributes.position,n=source.attributes.normal,cc=[],dd=[];for(let i=0;i<p.count;i++){const c=color(p.getX(i),p.getY(i),p.getZ(i),n.getX(i),n.getY(i),n.getZ(i));cc.push(...c.slice(0,3));dd.push(c[4]??0,c[3]??0,c[5]??1);if(c[3]>.6)stats.snowVertices++;}
+  for(let z0=0;z0<rows;z0+=tileRows)for(let x0=0;x0<cols;x0+=tileCols){const width=Math.min(tileCols,cols-x0),height=Math.min(tileRows,rows-z0),pos=[],normals=[],colors=[],data=[],indices=[];
+   for(let j=0;j<=height;j++)for(let i=0;i<=width;i++){const a=(j+z0)*(cols+1)+i+x0;pos.push(p.getX(a),p.getY(a),p.getZ(a));normals.push(n.getX(a),n.getY(a),n.getZ(a));colors.push(cc[a*3],cc[a*3+1],cc[a*3+2]);data.push(dd[a*3],dd[a*3+1],dd[a*3+2]);}
    for(let j=0;j<height;j++)for(let i=0;i<width;i++){const a=j*(width+1)+i,b=a+width+1;indices.push(a,b,a+1,a+1,b,b+1);}
-   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setIndex(indices);add(geometry,material,name+' '+x0+':'+z0,metadata);
+   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geometry.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setAttribute('mountainData',new THREE.Float32BufferAttribute(data,3));geometry.setIndex(indices);add(geometry,material,name+' '+x0+':'+z0,metadata);
   }source.dispose();
  }
  const [minX,minZ,maxX,maxZ]=landforms.bounds;
- grid('Duku northern Tianshan bedrock',112,76,(u,v)=>{const x=mix(minX,maxX,u),z=mix(minZ,maxZ,v);return[x,landforms.heightAt(x,z,world.groundHeight(x,z)),z];},landforms.colorAt,{kind:'landform',bounds:landforms.bounds},28,19);
+ grid('Duku northern Tianshan bedrock',140,95,(u,v)=>{const x=mix(minX,maxX,u),z=mix(minZ,maxZ,v);return[x,landforms.heightAt(x,z,world.chinaTerrain?.surfaceHeight(x,z)??world.groundHeight(x,z)),z];},landforms.colorAt,{kind:'landform',bounds:landforms.bounds},35,24);
  // Open avalanche gallery: the mountain side is solid, the valley side is
  // visibly open between piers. Sloped roof discharges snow past the open side.
  const gallery=features.gallery,wallSide=-1,openSide=1;

@@ -23,18 +23,23 @@ export function detectSharpBends(track){
  for(const group of groups)group.winding=group.bends.some(b=>b.turn!==group.bends[0].turn);
  return{bends:raw,groups};
 }
+// track.right is +lateral, but the actual +Z-facing driver's screen-right is
+// tangent x world-up, i.e. -track.right. Positive route curvature turns LEFT
+// on screen. Keep physical curvature for outer-side placement; invert only
+// the driver's turn instruction, including reverse travel.
+const driverTurn=(curvatureSign,travel)=>-curvatureSign*travel;
 const barrierAt=(track,s)=>track.roadProfile?.(s)?.barrierOffset??BARRIER.offset;
 export function planCurveSigns(track){
  const {bends,groups}=detectSharpBends(track),warnings=[],chevrons=[];
  for(const group of groups)for(const travel of[1,-1]){
-  const s=wrap(travel>0?group.startS-CURVE_SIGN_BUDGET.warningLead:group.endS+CURVE_SIGN_BUDGET.warningLead,track.length),bend=travel>0?group.bends[0]:group.bends.at(-1),turn=bend.turn*travel;
-  warnings.push({kind:'warning',groupId:group.id,s,travel,turn,icon:(group.winding?'winding-':'')+(turn>0?'right':'left'),lateral:travel*(barrierAt(track,s)+1.30),barrierOffset:barrierAt(track,s),leadMetres:CURVE_SIGN_BUDGET.warningLead,bottomHeight:2.05,topHeight:3.54});
+  const s=wrap(travel>0?group.startS-CURVE_SIGN_BUDGET.warningLead:group.endS+CURVE_SIGN_BUDGET.warningLead,track.length),bend=travel>0?group.bends[0]:group.bends.at(-1),turn=driverTurn(bend.turn,travel);
+  warnings.push({kind:'warning',groupId:group.id,s,travel,turn,icon:(group.winding?'winding-':'')+(turn>0?'right':'left'),lateral:-travel*(barrierAt(track,s)+1.30),barrierOffset:barrierAt(track,s),leadMetres:CURVE_SIGN_BUDGET.warningLead,bottomHeight:2.05,topHeight:3.54});
  }
  for(const [bendIndex,bend]of bends.entries()){
   const length=bend.endS-bend.startS,spacing=clamp(16+1/bend.peakCurvature*.06,18,26),n=Math.max(2,Math.ceil(length/spacing));
   for(let i=0;i<n;i++){
    const s=bend.startS+Math.min(length-2,(i+.35)*length/n),outsideSide=-bend.turn;
-   for(const travel of[1,-1]){const turn=bend.turn*travel;chevrons.push({kind:'chevron',bendIndex,s,travel,turn,icon:turn>0?'chevron-right':'chevron-left',outsideSide,lateral:outsideSide*(barrierAt(track,s)+1.0),barrierOffset:barrierAt(track,s),bottomHeight:1.82,topHeight:2.54});}
+   for(const travel of[1,-1]){const turn=driverTurn(bend.turn,travel);chevrons.push({kind:'chevron',bendIndex,s,travel,turn,icon:turn>0?'chevron-right':'chevron-left',outsideSide,lateral:outsideSide*(barrierAt(track,s)+1.0),barrierOffset:barrierAt(track,s),bottomHeight:1.82,topHeight:2.54});}
   }
  }
  return{bends,groups,warnings,chevrons};
@@ -45,7 +50,8 @@ function createAtlas(){
  function triangle(x,y){ctx.beginPath();ctx.moveTo(x+64,y+5);ctx.lineTo(x+123,y+121);ctx.lineTo(x+5,y+121);ctx.closePath();ctx.fillStyle='#171a17';ctx.fill();ctx.beginPath();ctx.moveTo(x+64,y+17);ctx.lineTo(x+111,y+114);ctx.lineTo(x+17,y+114);ctx.closePath();ctx.fillStyle='#efc94a';ctx.fill();}
  for(let cell=0;cell<8;cell++){
   const x=cell%4*128,y=Math.floor(cell/4)*128;
-  if(cell<4){triangle(x,y);ctx.save();ctx.translate(x+64,y+77);if(cell%2===0)ctx.scale(-1,1);ctx.strokeStyle='#141713';ctx.fillStyle='#141713';ctx.lineWidth=8;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();
+  // Keep even the winding-road arrowhead within the yellow triangular inset.
+  if(cell<4){triangle(x,y);ctx.save();ctx.translate(x+64,y+82);ctx.scale(.76,.82);if(cell%2===0)ctx.scale(-1,1);ctx.strokeStyle='#141713';ctx.fillStyle='#141713';ctx.lineWidth=8;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();
    if(cell<2){ctx.moveTo(-12,27);ctx.lineTo(-12,7);ctx.quadraticCurveTo(-12,-9,5,-9);ctx.lineTo(20,-9);}else{ctx.moveTo(-8,28);ctx.bezierCurveTo(-8,14,15,18,15,5);ctx.bezierCurveTo(15,-6,-13,-2,-13,-14);ctx.quadraticCurveTo(-13,-23,7,-23);ctx.lineTo(18,-23);}ctx.stroke();
    const yy=cell<2?-9:-23;ctx.beginPath();ctx.moveTo(29,yy);ctx.lineTo(13,yy-11);ctx.lineTo(13,yy+11);ctx.closePath();ctx.fill();ctx.restore();
   }else if(cell<6){ctx.fillStyle='#1b201b';ctx.fillRect(x,y,128,128);ctx.fillStyle='#edc645';ctx.fillRect(x+5,y+5,118,118);ctx.save();ctx.translate(x+64,y+64);if(cell===4)ctx.scale(-1,1);ctx.fillStyle='#181d17';ctx.beginPath();ctx.moveTo(-34,-51);ctx.lineTo(-5,-51);ctx.lineTo(42,0);ctx.lineTo(-5,51);ctx.lineTo(-34,51);ctx.lineTo(13,0);ctx.closePath();ctx.fill();ctx.restore();

@@ -9,6 +9,8 @@ async function fetchAudioBytes(url,timeout){
 }
 function decodeAudio(context,bytes){return new Promise((resolve,reject)=>{const result=context.decodeAudioData(bytes,resolve,reject);result?.then(resolve,reject);});}
 const audioBase=()=>import.meta.env?.BASE_URL||'/';
+const MASTER_GAIN=.4,MUSIC_TRIM_GAIN=2;
+const musicLevel=value=>Number.isFinite(value)?Math.max(0,Math.min(1,value)):0;
 /** Licensed music, one-shot ignition and short event cues. No continuous engine audio. */
 export class DriveAudio {
   constructor(){this.musicTrack=MUSIC_TRACKS[0].id;this.ready=false;this.enabled=false;this.volume=.65;this.musicVolume=.35;this.musicStatus='idle';this.musicPromise=null;this.musicElement=null;this.musicMediaNode=null;this.musicGain=null;this.musicPlayPending=null;this.musicPlayToken=0;this.musicPriming=false;this.musicPlaybackBlocked=false;this.audioStatus='idle';this.musicFailures=0;this.musicRetryAt=0;this.musicBuffer=null;this.musicSource=null;this.musicActive=false;this.musicOffset=0;this.musicStartedAt=0;this.startToken=0;this.startSource=null;this.startBuffer=null;this.startPromise=null;}
@@ -16,7 +18,7 @@ export class DriveAudio {
     if(this.ready){const resumed=this.resumeFromGesture();void this.loadMusic();void this.loadStart();await resumed;return;}
     const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
     this.ctx=new AC();const a=this.ctx;
-    this.master=a.createGain();this.master.gain.value=.4;this.master.connect(a.destination);
+    this.master=a.createGain();this.master.gain.value=MASTER_GAIN;this.master.connect(a.destination);
     this.compressor=a.createDynamicsCompressor();this.compressor.threshold.value=-15;this.compressor.ratio.value=7;this.compressor.connect(this.master);
     // Noise exists only as a reusable buffer for short collision cues.
     const noise=a.createBuffer(1,a.sampleRate*.5,a.sampleRate),data=noise.getChannelData(0);
@@ -94,7 +96,7 @@ export class DriveAudio {
     const context=this.ctx,element=new Media();this.musicElement=element;
     element.preload='auto';element.loop=true;element.playsInline=true;element.setAttribute?.('playsinline','');
     element.src=audioBase()+'audio/'+MUSIC_TRACKS.find(track=>track.id===this.musicTrack).file;
-    this.musicMediaNode=context.createMediaElementSource(element);this.musicGain=context.createGain();this.musicGain.gain.value=.72;
+    this.musicMediaNode=context.createMediaElementSource(element);this.musicGain=context.createGain();this.musicGain.gain.value=MUSIC_TRIM_GAIN;
     this.musicMediaNode.connect(this.musicGain);this.musicGain.connect(this.musicBus);this.musicStatus='loading';
     element.oncanplay=()=>{if(this.musicElement===element&&this.ready){if(!this.musicPlaybackBlocked&&this.musicFailures<3)this.musicStatus='ready';}};
     element.onerror=()=>{if(this.musicElement!==element||!this.ready)return;this.musicStatus=this.musicPlaybackBlocked?'blocked':'unavailable';this.musicFailures++;this.musicRetryAt=Date.now()+Math.min(15000,2000*2**(this.musicFailures-1));};
@@ -141,16 +143,27 @@ export class DriveAudio {
     this.ready=false;this.enabled=false;this.musicBuffer=null;this.musicPromise=null;this.musicOffset=0;
     await this.ctx.close();
   }
-  setEnabled(value){this.enabled=value;if(!value){this.stopStart();if(this.ready)this.pauseMusic();}if(this.ready){this.master.gain.setTargetAtTime(value?.4:0,this.ctx.currentTime,.06);if(value){void this.resumeFromGesture();void this.loadMusic();}}}
+  setEnabled(value){this.enabled=value;if(!value){this.stopStart();if(this.ready)this.pauseMusic();}if(this.ready){this.master.gain.setTargetAtTime(value?MASTER_GAIN:0,this.ctx.currentTime,.06);if(value){void this.resumeFromGesture();void this.loadMusic();}}}
   tone(freq,duration=.15,volume=.12,type='sine',destination=null,when=null){if(!this.ready)return;const a=this.ctx,t=when??a.currentTime,o=a.createOscillator(),g=a.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);o.connect(g);g.connect(destination||this.compressor);o.start(t);o.stop(t+duration+.03);}
   noiseHit(duration=.13,volume=.15,frequency=2500,destination=null,when=null){if(!this.ready)return;const a=this.ctx,t=when??a.currentTime,n=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();n.buffer=this.noise;f.type='highpass';f.frequency.value=frequency;g.gain.setValueAtTime(volume,t);g.gain.exponentialRampToValueAtTime(.001,t+duration);n.connect(f);f.connect(g);g.connect(destination||this.compressor);n.start(t);n.stop(t+duration+.02);}
   count(last=false){this.tone(last?880:440,last?.45:.13,.16);}
   collision(strength){this.noiseHit(.14,(.12+strength*.15)*this.volume,500);}
   reward(){this.tone(740,.14,.08);this.tone(1108,.22,.05,'sine',null,this.ready?this.ctx.currentTime+.09:0);}
+  // Scheduled steady-state mix targets, not a claim about hardware volume or
+  // instantaneous ramped PCM amplitude. Used by the read-only playback audit.
+  getMixState(){
+    const sliderVolume=musicLevel(this.musicVolume),masterTarget=this.ready&&this.enabled?MASTER_GAIN:0;
+    const busTarget=this.ready&&this.enabled&&this.musicActive?sliderVolume:0;
+    return {profile:'music-headroom-v1',sliderVolume,enabled:this.enabled,active:this.musicActive,
+      muted:masterTarget===0||busTarget===0,masterTarget,musicGain:MUSIC_TRIM_GAIN,busTarget,
+      outputTarget:MUSIC_TRIM_GAIN*busTarget*masterTarget,maxOutputGain:MUSIC_TRIM_GAIN*MASTER_GAIN};
+  }
   update(player,track,rivals,active,progress){
     if(!this.ready)return;const t=this.ctx.currentTime;
-    this.master.gain.setTargetAtTime(this.enabled?.4:0,t,.1);
-    this.musicBus.gain.setTargetAtTime(active&&this.enabled?Math.max(0,Math.min(1,this.musicVolume))*.75:0,t,.16);
+    this.master.gain.setTargetAtTime(this.enabled?MASTER_GAIN:0,t,.1);
+    // Music alone reaches .8 at slider maximum (2 * 1 * .4), while the
+    // master/effects mix remains unchanged. Do not boost the shared master.
+    this.musicBus.gain.setTargetAtTime(active&&this.enabled?musicLevel(this.musicVolume):0,t,.16);
     this.updateMusic(active&&this.enabled);
     if(active&&this.enabled&&this.musicStatus==='unavailable'&&this.musicFailures<3&&Date.now()>=this.musicRetryAt)void this.loadMusic();
   }
