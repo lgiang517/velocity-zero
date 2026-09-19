@@ -156,9 +156,9 @@ export class GameWorld {
     this.scene.fog.color.set('#b9c5c4').lerp(new THREE.Color('#233c4b'),this.night).lerp(new THREE.Color('#718b8c'),this.wet*.5);
     this.scene.fog.density=damp(this.scene.fog.density,routeWeather.fog,.7,dt);
     this.buildingMaterial.emissiveIntensity=.05+this.night*.9;this.lampMaterial.emissiveIntensity=.08+this.night*3.2;
-    const q=this.track.sample(player.s);car.root.position.copy(q.p);car.root.rotation.set(-Math.asin(q.slope),q.heading+player.yaw,0,'YXZ');
+    const q=this.track.sample(player.s);car.root.position.copy(q.p);car.root.position.y+=.025;car.root.rotation.set(-Math.asin(q.slope),q.heading+player.yaw,0,'YXZ');
     const pos=car.root.position,forward=new THREE.Vector3(Math.sin(q.heading+player.yaw),0,Math.cos(q.heading+player.yaw));
-    car.root.position.addScaledVector(q.right,player.d);car.setWetness(this.wet);car.setLighting?.({night:this.night,tunnel:this.tunnelAmount,wet:this.wet});if(car.brakeGlow)car.brakeGlow.intensity*=.06+this.night*.50;
+    car.root.position.addScaledVector(q.right,player.d);car.grounding?.update(player.s,player.d,player.yaw,{night:this.night,quality:this.quality});car.setWetness(this.wet);car.setLighting?.({night:this.night,tunnel:this.tunnelAmount,wet:this.wet});if(car.brakeGlow)car.brakeGlow.intensity*=.06+this.night*.50;
     this.sky.position.copy(this.camera.position);
     this.headlight.position.copy(pos).addScaledVector(forward,2).add(new THREE.Vector3(0,.7,0));this.headlight.target.position.copy(pos).addScaledVector(forward,50);this.headlight.intensity=10+Math.max(this.night,this.tunnelAmount,this.wet*.35)*200;
     this.tunnelFill.position.copy(this.track.point(player.s+9,0,6));this.tunnelFill.intensity=this.tunnelAmount*230;

@@ -101,7 +101,8 @@ export function createImportedCar(config,color,simple=false,source=templates.get
   }
  }
  applyLighting();
- const wheels=[],frontWheels=[];
+ const wheels=[],frontWheels=[],wheelRig=new THREE.Group();wheelRig.name='Independent wheel suspension';root.add(wheelRig);
+ let axleHeight=0;
  for(const corner of ['lf','rf','lr','rr']){
   const wheel=body.getObjectByName('Wheel_'+corner);if(!wheel)throw new Error(config.name+': missing Wheel_'+corner);
   body.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(wheel);
@@ -110,8 +111,13 @@ export function createImportedCar(config,color,simple=false,source=templates.get
   wheel.parent.add(pivot);pivot.position.copy(wheel.position);pivot.quaternion.copy(wheel.quaternion);pivot.scale.copy(wheel.scale);
   pivot.attach(wheel);wheel.userData.radius=radius>.1?radius:.36;
   wheel.userData.rollBase=wheel.quaternion.clone();wheel.userData.rollAngle=0;wheels.push(wheel);
-  if(corner.endsWith('f')){frontWheels.push(pivot);const caliper=body.getObjectByName('Caliper_'+corner);if(caliper)pivot.attach(caliper);}
+  const caliper=body.getObjectByName('Caliper_'+corner);if(caliper)pivot.attach(caliper);
+  if(corner.endsWith('f'))frontWheels.push(pivot);
+  // Preserve the authored axle transform, but keep unsprung wheels and brakes
+  // out of the shell's pitch/roll. The root still supplies the road gradient.
+  wheelRig.attach(pivot);axleHeight+=pivot.position.y;
  }
+ const chassisPivot=new THREE.Vector3(0,axleHeight/wheels.length,0),rotatedChassisPivot=new THREE.Vector3();
  const metadata={...config,...source.userData};
  // Blender may export scene extras on a named child rather than the glTF scene.
  body.traverse(o=>{for(const key of ['driverEye','bonnetEye','steeringAxis','nativeCabin'])if(o.userData[key]!==undefined)metadata[key]=o.userData[key];});
@@ -123,7 +129,7 @@ export function createImportedCar(config,color,simple=false,source=templates.get
  const glass=[...materials.values()].find(m=>m.name==='Window glass');
  const cockpit=new THREE.Group();cockpit.name=nativeCabin?'Native driving cabin':'Bonnet camera';
  const cabinInterior={stats:()=>({native:nativeCabin,model:config.id,source:nativeCabin?'Original model interior':'Exterior model; bonnet view'}),setInterior(){}};
- return {root,body,wheels,frontWheels,lightState,paint:paints[0],glass,tailMat:rearLights[0]||tails[0],steeringWheel,cockpit,cabinInterior,
+ return {root,body,wheelRig,wheels,frontWheels,chassisPivotHeight:chassisPivot.y,lightState,paint:paints[0],glass,tailMat:rearLights[0]||tails[0],steeringWheel,cockpit,cabinInterior,
   driverEye,driverCameraFrame:body,cameraKind:nativeCabin?'driver':'bonnet',brakeGlow:null,exhaust:[],
   setLighting({night=0,tunnel=0,wet=0}={}){lightState.night=unit(night);lightState.tunnel=unit(tunnel);lightState.wet=unit(wet);applyLighting();},
   setPaint(value){for(const m of paints)m.color.set(value);},
@@ -143,7 +149,11 @@ export function createImportedCar(config,color,simple=false,source=templates.get
    for(const w of wheels){w.userData.rollAngle=(w.userData.rollAngle+p.u*dt/w.userData.radius)%(Math.PI*2);w.quaternion.copy(w.userData.rollBase).multiply(rotation.setFromAxisAngle(rollingAxis,w.userData.rollAngle));}
    for(const pivot of frontWheels)pivot.rotation.y=p.steer;
    if(steeringWheel)steeringWheel.quaternion.copy(steeringBase).multiply(rotation.setFromAxisAngle(steeringAxis,-p.steer*8));
-   body.rotation.z=p.roll;body.rotation.x=p.pitch;body.position.y=-Math.abs(p.roll)*.06;
+   // +Z is forward, +X is right. Positive acceleration must lift the nose;
+   // a positive right-turn lateral force (negative physics.roll) leans the
+   // sprung shell left. Rotate about axle height instead of the ground origin.
+   body.rotation.z=-p.roll;body.rotation.x=-p.pitch;
+   body.position.copy(chassisPivot).sub(rotatedChassisPivot.copy(chassisPivot).applyQuaternion(body.quaternion));
    lightState.brake=unit(p.brake);applyLighting();
   },
   dispose(){for(const material of materials.values())material.dispose();}

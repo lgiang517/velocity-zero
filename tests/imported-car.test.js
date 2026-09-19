@@ -26,7 +26,7 @@ test('authored vehicles retain independent wheels, fixed calipers and native geo
  assert.equal(car.wheels.length,4);assert.equal(car.frontWheels.length,2);
  assert.ok(car.body.getObjectByName('Original body'));assert.equal(car.body.getObjectByName('GT cockpit'),undefined);
  assert.equal(car.cabinInterior.stats().native,true);assert.deepEqual(car.driverEye,[.38,1.08,.3]);
- const caliper=car.body.getObjectByName('Caliper_lf'),before=caliper.position.clone();
+ const caliper=car.root.getObjectByName('Caliper_lf'),before=caliper.position.clone();
  car.update(pose,.1);
  assert.ok(car.wheels.every(w=>Math.abs(w.userData.rollAngle-2)<1e-10));
  assert.equal(car.frontWheels[0].rotation.y,.2);assert.ok(caliper.position.distanceTo(before)<1e-10);

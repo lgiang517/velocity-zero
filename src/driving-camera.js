@@ -23,9 +23,9 @@ function fittedOrbitDistance(car,direction,fov,aspect,requested){
 
 /** Two camera rigs. The cockpit is rigidly attached; orbit follows an interpolated car pose. */
 export class DrivingCamera {
- constructor(camera){this.camera=camera;this.orbit={yaw:0,pitch:.33,distance:8.5};this.initialized=false;this.lastMode=-1;this.heading=0;this.height=0;}
+ constructor(camera){this.camera=camera;this.orbit={yaw:0,pitch:.25,distance:8.5};this.initialized=false;this.lastMode=-1;this.heading=0;this.height=0;}
  reset(){this.initialized=false;}
- resetOrbit(){Object.assign(this.orbit,{yaw:0,pitch:.33,distance:8.5});this.reset();}
+ resetOrbit(){Object.assign(this.orbit,{yaw:0,pitch:.25,distance:8.5});this.reset();}
  drag(dx,dy){this.orbit.yaw-=dx*.006;this.orbit.pitch=clamp(this.orbit.pitch+dy*.004,.12,1.15);}
  zoom(delta){this.orbit.distance=clamp(this.orbit.distance+delta*.008,3.4,17);}
  update(dt,car,player,road,mode,view,groundHeight){
