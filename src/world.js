@@ -1,3 +1,4 @@
+import {createTireEffects} from './tire-effects.js';
 import {sampleRouteWeather} from './route-weather.js';
 import {buildCurveSigns} from './curve-signs.js';
 import {RoadLighting} from './road-lighting.js';
@@ -118,6 +119,9 @@ export class GameWorld {
     const count=250,positions=new Float32Array(count*3),colors=new Float32Array(count*3);this.particleLife=new Float32Array(count);this.particleVelocity=new Float32Array(count*3);this.particleCursor=0;
     this.particleGeometry=new THREE.BufferGeometry();this.particleGeometry.setAttribute('position',new THREE.BufferAttribute(positions,3));this.particleGeometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
     this.particles=new THREE.Points(this.particleGeometry,new THREE.PointsMaterial({size:.12,vertexColors:true,transparent:true,opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending}));this.particles.frustumCulled=false;this.scene.add(this.particles);
+    // Sparks keep their bright core, but no longer expose square point corners.
+    this.particles.material.onBeforeCompile=shader=>{shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\nfloat sparkEdge=1.-smoothstep(.12,.5,length(gl_PointCoord-.5));diffuseColor.a*=sparkEdge;if(diffuseColor.a<.01)discard;');};
+    this.tireEffects=createTireEffects(this.track,{coarse:matchMedia('(pointer:coarse)').matches});this.scene.add(this.tireEffects.root);
     const rainPos=new Float32Array(900*6);for(let i=0;i<900;i++){const x=(seeded(i+2)-.5)*100,y=seeded(i+5)*45,z=(seeded(i+9)-.5)*100;rainPos.set([x,y,z,x-.3,y-1.1,z],i*6);}const rainG=new THREE.BufferGeometry();rainG.setAttribute('position',new THREE.BufferAttribute(rainPos,3));this.rain=new THREE.LineSegments(rainG,new THREE.LineBasicMaterial({color:'#bed0c8',transparent:true,opacity:.35,depthWrite:false}));this.rain.visible=false;this.scene.add(this.rain);
     const flakes=new Float32Array(450*3);for(let i=0;i<450;i++)flakes.set([(seeded(i+7)-.5)*70,seeded(i+41)*30,(seeded(i+88)-.5)*70],i*3);const snowGeometry=new THREE.BufferGeometry();snowGeometry.setAttribute('position',new THREE.BufferAttribute(flakes,3));this.snowParticles=new THREE.Points(snowGeometry,new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:this.uniforms.time,uSnow:{value:0}},vertexShader:'uniform float uTime;void main(){vec3 p=position;p.y=mod(p.y-uTime*3.1,30.)-4.;p.x+=sin(uTime*.7+p.z)*.8;vec4 mv=modelViewMatrix*vec4(p,1.);gl_Position=projectionMatrix*mv;gl_PointSize=clamp(38./max(1.,-mv.z),1.3,4.);}',fragmentShader:'uniform float uSnow;void main(){float a=1.-smoothstep(.18,.5,length(gl_PointCoord-.5));gl_FragColor=vec4(.88,.93,1.,a*uSnow*.8);}'}));this.snowParticles.frustumCulled=false;this.snowParticles.visible=false;this.scene.add(this.snowParticles);
     const markGeo=new THREE.BufferGeometry();this.skidPositions=new Float32Array(1600*6);markGeo.setAttribute('position',new THREE.BufferAttribute(this.skidPositions,3));this.skids=new THREE.LineSegments(markGeo,new THREE.LineBasicMaterial({color:'#182123',transparent:true,opacity:.45}));this.skids.frustumCulled=false;this.scene.add(this.skids);this.skidCursor=0;this.lastSkids=null;
@@ -139,7 +143,7 @@ export class GameWorld {
     this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.renderer.setPixelRatio(budget.pixelRatio);this.renderer.setSize(width,height,false);
     this.composer.setPixelRatio(budget.pixelRatio);this.composer.setSize(width,height);
   }
-  update(dt,player,car,mode='menu',cameraMode=0){
+  update(dt,player,car,mode='menu',cameraMode=0,assists=true){
     this.reflectionCar=car;this.reflectionDt=dt;this.reflectionInside=cameraMode===1&&mode!=='menu';
     this.time+=dt;this.uniforms.time.value=this.time;
     this.tunnelAmount=damp(this.tunnelAmount,this.track.inTunnel(player.s)?1:0,3,dt);
@@ -170,11 +174,11 @@ export class GameWorld {
     this.snowParticles.visible=this.snow>.03;this.snowParticles.position.copy(pos);this.snowParticles.material.uniforms.uSnow.value=this.snow;this.snowParticles.geometry.setDrawRange(0,Math.round((this.renderBudget?.pixelRatio<=1?240:450)*this.snow));
     for(const rotor of this.turbines)rotor.rotation.z+=dt*.34;
     const a=this.particleGeometry.attributes.position.array;for(let i=0;i<this.particleLife.length;i++){if(this.particleLife[i]>0){this.particleLife[i]-=dt;this.particleVelocity[i*3+1]-=dt*9;for(let j=0;j<3;j++)a[i*3+j]+=this.particleVelocity[i*3+j]*dt;}else a[i*3+1]=-50;}this.particleGeometry.attributes.position.needsUpdate=true;
-    if(mode==='race'&&player.u>15&&(player.slip>.10||player.brake>.8)){
+    const lockedWheels=!assists&&player.brake>.85&&Math.abs(player.u)>18;
+    if(mode==='race'&&player.u>15&&(player.slip>.10||lockedWheels)){
       const marks=[this.track.point(player.s-1.35,player.d-.8,.06),this.track.point(player.s-1.35,player.d+.8,.06)];if(this.lastSkids)for(let i=0;i<2;i++){const k=this.skidCursor++%1600;this.skidPositions.set([...this.lastSkids[i].toArray(),...marks[i].toArray()],k*6);}this.lastSkids=marks;this.skids.geometry.attributes.position.needsUpdate=true;
-      if(Math.random()<.3)this.emit(this.track.point(player.s-2,player.d,.12),this.wet>.3?'#b8d3d0':'#818e82',2);
     }else this.lastSkids=null;
-    if(mode==='race'&&this.wet>.4&&player.u>20&&Math.random()<.4)this.emit(this.track.point(player.s-2,player.d,.05),'#a3bbb8',2);
+    this.tireEffects.update(dt,{player,car,active:mode==='race',wet:this.wet,night:this.night,tunnel:this.tunnelAmount,lockedWheels});
   }
   render(){this.renderer.info.reset();if(this.reflectionCar)this.vehicleReflections.update(this,this.reflectionCar,this.reflectionDt,this.reflectionInside);if(this.quality==='low')this.renderer.render(this.scene,this.camera);else this.composer.render();}
 }

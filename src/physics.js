@@ -156,7 +156,12 @@ export class VehiclePhysics {
     const lateral=side*(outward>0?-outward*.025:outward);
     const roadRate=curvature*along;
     if(outward>0 && side*this.yaw>0)this.yaw=damp(this.yaw,0,9,dt);
-    if(side*(this.r-roadRate)>0)this.r=roadRate;
+    // Unwinding a rear-corner contact reduces the footprint even though yaw
+    // turns towards the rail. Constrain only rotation that grows that footprint;
+    // otherwise a valid correction is cancelled during every contact pass.
+    const relativeRate=this.r-roadRate;
+    const growsFootprint=lateralExtent(this.config,this.yaw+relativeRate*dt,curvature)>lateralExtent(this.config,this.yaw,curvature)+1e-10;
+    if(side*relativeRate>0&&growsFootprint)this.r=roadRate;
     this.u=along*Math.cos(this.yaw)+lateral*Math.sin(this.yaw);
     this.v=-along*Math.sin(this.yaw)+lateral*Math.cos(this.yaw);
     this.d=side*Math.min(limit,barrierLimit(this.config,this.yaw,curvature,offset));

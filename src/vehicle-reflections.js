@@ -41,7 +41,7 @@ export class VehicleReflections {
   }
   const renderer=this.renderer,target=renderer.getRenderTarget(),activeFace=renderer.getActiveCubeFace(),mip=renderer.getActiveMipmapLevel();
   const shadowAuto=renderer.shadowMap.autoUpdate,shadowNeeds=renderer.shadowMap.needsUpdate,xr=renderer.xr.enabled;
-  const hidden=[car.root,car.grounding?.root,world.rain,world.particles,world.skids].filter(Boolean).map(object=>[object,object.visible]);
+  const hidden=[car.root,car.grounding?.root,world.rain,world.particles,world.tireEffects?.root,world.skids].filter(Boolean).map(object=>[object,object.visible]);
   const receivers=[];
   try{
    // Main-camera CSM splits do not apply to the six reflection views.

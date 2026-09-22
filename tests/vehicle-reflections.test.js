@@ -15,13 +15,13 @@ function fixture(){
  reflection.camera.coordinateSystem=THREE.WebGLCoordinateSystem;reflection.camera.updateCoordinateSystem();
  reflection.pmrem={fromCubemap:()=>({texture:{name:'filtered'},dispose(){}}),dispose(){}};
  const maps=[],bindings=[],car={root:new THREE.Group(),setEnvironment:(texture,options)=>{maps.push(texture);bindings.push({texture,options});}};
- const world={renderBudget:{reflectionSize:128,reflectionInterval:3.2},weather:'clear',night:0,tunnelAmount:0,env:{texture:{name:'shared outdoor HDR'}},scene:new THREE.Scene(),rain:new THREE.Group(),particles:new THREE.Group(),skids:new THREE.Group()};
+ const world={renderBudget:{reflectionSize:128,reflectionInterval:3.2},weather:'clear',night:0,tunnelAmount:0,env:{texture:{name:'shared outdoor HDR'}},scene:new THREE.Scene(),rain:new THREE.Group(),particles:new THREE.Group(),tireEffects:{root:new THREE.Group()},skids:new THREE.Group()};
  world.rain.visible=false;
  return {reflection,renderer,world,car,maps,bindings,log,screen};
 }
 
 test('reflection capture publishes only a complete filtered cube and restores render/shadow state',()=>{
- const f=fixture();let captures=0;const receiver=new THREE.Mesh();receiver.receiveShadow=true;f.world.scene.add(receiver);f.renderer.render=()=>{captures++;assert.equal(receiver.receiveShadow,false);assert.equal(f.car.root.visible,false);assert.equal(f.renderer.shadowMap.autoUpdate,false);};
+ const f=fixture();let captures=0;const receiver=new THREE.Mesh();receiver.receiveShadow=true;f.world.scene.add(receiver);f.renderer.render=()=>{captures++;assert.equal(f.world.tireEffects.root.visible,false);assert.equal(receiver.receiveShadow,false);assert.equal(f.car.root.visible,false);assert.equal(f.renderer.shadowMap.autoUpdate,false);};
  for(let i=0;i<5;i++)f.reflection.update(f.world,f.car,1/60,false);
  assert.equal(captures,5);assert.ok(f.maps.every(map=>map===null),'partial captures never become the active map');assert.equal(f.bindings.at(-1).options.fallbackTexture,f.world.env.texture);
  f.reflection.update(f.world,f.car,1/60,false);
@@ -38,7 +38,7 @@ test('failed reflection capture restores hidden geometry and GPU state',()=>{
  const f=fixture();f.renderer.render=()=>{throw new Error('capture failed');};
  const receiver=new THREE.Mesh();receiver.receiveShadow=true;f.world.scene.add(receiver);
  assert.doesNotThrow(()=>f.reflection.update(f.world,f.car,.1,false));assert.equal(f.reflection.stats.lastError,'capture failed');assert.equal(f.reflection.face,-1);assert.equal(receiver.receiveShadow,true);
- assert.equal(f.car.root.visible,true);assert.equal(f.world.particles.visible,true);assert.equal(f.world.rain.visible,false);
+ assert.equal(f.car.root.visible,true);assert.equal(f.world.particles.visible,true);assert.equal(f.world.tireEffects.root.visible,true);assert.equal(f.world.rain.visible,false);
  assert.equal(f.renderer.shadowMap.autoUpdate,true);assert.equal(f.renderer.xr.enabled,true);assert.deepEqual(f.log.at(-1),[f.screen,3,1]);
  f.reflection.dispose();
 });
