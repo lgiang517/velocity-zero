@@ -5,13 +5,14 @@ import {CoastTrack} from '../src/track.js';
 import {buildCoastalTerrain} from '../src/terrain.js';
 import {buildRoadsideBuildings} from '../src/roadside-buildings.js';
 import {buildNeighborhoodPaths} from '../src/neighborhood-paths.js';
+import {buildNeighborhood} from '../src/neighborhood.js';
 
 const world={scene:new THREE.Scene(),track:new CoastTrack({legacy:true}),quality:'balanced'};
 buildCoastalTerrain(world);
 const sample=world.track.samples.filter((_,i)=>i%4===0);
 function roadDistance(p){let best=Infinity;for(let i=1;i<sample.length;i++){const a=sample[i-1].p,b=sample[i].p,dx=b.x-a.x,dz=b.z-a.z,t=Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.z-a.z)*dz)/(dx*dx+dz*dz)));best=Math.min(best,Math.hypot(p.x-a.x-t*dx,p.z-a.z-t*dz));}return best;}
 const sites=buildRoadsideBuildings(world,{land(s,lateral,radius){const p=world.track.point(s,lateral);if(roadDistance(p)<14.7+radius)return null;p.y=world.groundHeight(p.x,p.z);return p;}});
-const paths=buildNeighborhoodPaths(world,sites),meshes=world.scene.children.filter(mesh=>mesh.name.startsWith('Neighborhood'));
+const neighborhood=buildNeighborhood(world,sites),paths=neighborhood.paths,meshes=world.scene.children.filter(mesh=>mesh.name.startsWith('Neighborhood'));
 world.scene.updateMatrixWorld(true);
 
 test('real homes share two connected neighborhood networks instead of disconnected door pads',()=>{
@@ -49,4 +50,16 @@ test('footpath exclusion is restricted to paving and cannot consume the driving 
  for(const front of paths.frontages){for(const p of front.approachPoints)assert.ok(paths.containsPoint(p.x,p.z));const site=sites.find(site=>site.id===front.siteId),road=world.track.point(site.s);assert.equal(paths.containsPoint(road.x,road.z,3),false);}
  for(const mesh of meshes){const p=mesh.geometry.attributes.position;for(let i=0;i<p.count;i+=36){assert.ok(roadDistance(new THREE.Vector3(p.getX(i),p.getY(i),p.getZ(i)))>13.2,'every batch remains outside the rail and driving envelope');}}
  assert.equal(buildNeighborhoodPaths(world,[]).containsPoint(0,0,100),false);
+});
+
+test('neighborhood runtime keeps sidewalks and everyday props without residents or their shadows',()=>{
+ assert.ok(neighborhood.stats.paths.sidewalkMetres>0);
+ assert.ok(neighborhood.stats.props.benches>0);
+ assert.ok(neighborhood.stats.props.planters>0);
+ const camera=new THREE.PerspectiveCamera();camera.position.copy(paths.routes[0].points[0]);
+ for(const quality of ['low','balanced','high'])neighborhood.update(camera,100,quality);
+ assert.ok(neighborhood.stats.props.visibleBatches>0);
+ assert.deepEqual(neighborhood.stats.people,{routes:0,residents:0,active:0,maxActive:0,drawCalls:0,triangles:0,matrixUpdates:0,shadowCasters:false});
+ assert.equal(world.scene.getObjectByName('Neighborhood residents'),undefined);
+ assert.equal(world.scene.getObjectByName('Resident contact shadows'),undefined);
 });
